@@ -1,6 +1,5 @@
 import org.apache.spark.graphx._
 import org.apache.spark.rdd.RDD
-
 import scala.collection.mutable.ArrayBuffer
 import breeze.linalg.{SparseVector => SV}
 import org.apache.spark.SparkContext
@@ -68,9 +67,9 @@ object Clustering {
       graph = labeledEpsilonNeighborGraph,
       initialMsg = -1L,
       activeDirection = EdgeDirection.Out)(
-      vprog = (vid, attr, msg) => (attr._1, math.max(attr._2, msg)),
-      sendMsg = sendMessage,
-      mergeMsg = (a, b) => math.max(a, b)
+        vprog = (vid, attr, msg) => (attr._1, math.max(attr._2, msg)),
+        sendMsg = sendMessage,
+        mergeMsg = (a, b) => math.max(a, b)
     )
       .mapVertices((_, attr) => attr._2)
     println("done!")

@@ -20,36 +20,47 @@ object GraphClustering extends Logging{
     val edgesDataPath = "resources/dblp/test/dblp-edges.txt"
     val graph: Graph[(String, Long), Long] = GraphLoader.loadGraph(sc, verticesDataPath, edgesDataPath)
     val hubGraph = graph.subgraph(vpred = (vid, attr) => attr._2 == 0)
-
-    // personalized page rank
-    // *********************************************************************************
-    val resetProb: Double = 0.2
-    val tol: Double = 0.001
-    val sources = graph.vertices.filter(v => v._2._2 == 0L).keys.collect()   // 提取主类节点计算ppr
+    val sources = graph.vertices.filter(v => v._2._2 == 0L).keys.collect()   // 提取主类顶点
 //    sources.sorted.foreach(println(_))
 
-    val personalizedPageRankGraph = PersonalizedPageRank
-      .basicParallelPersonalizedPageRank(graph, graph.numVertices.toInt, sources, resetProb, tol)
-      .mask(hubGraph)
-//    personalizedPageRankGraph.vertices.keys.collect().sorted.foreach(println(_))
-
-    // clustering
-    // *********************************************************************************
+    val resetProb: Double = 0.2
+    val tol: Double = 0.001
     val epsilon = 0.005
     val minPts = 3
 
-    val clusteringGraph: Graph[Long, Double] =
+    var newEdgeWeights = Array(1.0, 1.0, 1.0, 1.0)
+    val threshold = 0.001
+    var mse = Double.MaxValue
+    var numIterator = 0
+
+    while(mse > threshold && (numIterator < 2)){
+      val curEdgeWeights = newEdgeWeights
+
+      // personalized page rank
+      // *********************************************************************************
+      val personalizedPageRankGraph = PersonalizedPageRank
+        .basicParallelPersonalizedPageRank(sc, graph, curEdgeWeights, sources, resetProb, tol)
+        .mask(hubGraph)
+      //    personalizedPageRankGraph.vertices.keys.collect().sorted.foreach(println(_))
+
+      // clustering
+      // *********************************************************************************
+      val clusteringGraph: Graph[Long, Double] =
       Clustering.clusterGraph(sc, personalizedPageRankGraph, sources, epsilon, minPts)
 
-    // update edge weight
-    // *********************************************************************************
+      // edge weight update
+      // *********************************************************************************
+      newEdgeWeights = EdgeWeightUpdate.updateEdgeWeight(clusteringGraph, curEdgeWeights)
 
+      for(i <- newEdgeWeights.indices){
+        mse += math.pow(newEdgeWeights(i) - curEdgeWeights(i), 2)
+      }
+      mse = math.sqrt(mse) / newEdgeWeights.length
 
-    // dblp
-//    val edgeTypeNum = 4
-//    var initEdgeWeights = Array.fill(edgeTypeNum)(1.0)
-//
-//    var oldEdgeWeights = initEdgeWeights
-//    var newEdgeWeights = initEdgeWeights
+      numIterator += 1
+      println(s"[Logging]: graph clustering conduct iteration $numIterator")
+      println("**************************************************************************")
+    }
+    sc.stop()
   }
 }

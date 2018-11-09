@@ -1,12 +1,14 @@
 import scala.reflect.ClassTag
 import breeze.linalg.{SparseVector => SV}
 import breeze.linalg._
+import org.apache.spark.SparkContext
 import org.apache.spark.graphx._
 
 object PersonalizedPageRank {
   def basicParallelPersonalizedPageRank[VD: ClassTag, ED: ClassTag](
+    sc: SparkContext,
     graph: Graph[VD, ED],
-    graphVerticesNum: Int,
+    edgeWeights: Array[Double],
     sources: Array[VertexId],
     resetProb: Double = 0.2,
     tol: Double = 0.001): Graph[SV[Double], Double] = {
@@ -17,8 +19,12 @@ object PersonalizedPageRank {
       s" to [0, 1], but got $resetProb")
     require(tol >= 0 && tol <= 1, s"Tolerance must belong to [0, 1], but got $tol")
 
-
+    val graphVerticesNum = graph.numVertices.toInt
     val zeros = SV.zeros[Double](graphVerticesNum)
+
+    val totalWeight = edgeWeights.sum
+    val totalWeightBC = sc.broadcast(totalWeight)
+    val edgeWeightsBC = sc.broadcast(edgeWeights)
 
     // map of vid -> vector where for each vid, the _position of vid in source_ is set to 1.0
     val sourcesInitMap = sources.zipWithIndex.map {
@@ -29,17 +35,12 @@ object PersonalizedPageRank {
         val maskResidualVec = SV.zeros[Double](graphVerticesNum)
         (vid, (estimateVec, residualVec, maskResidualVec))
     }.toMap
-
-    val sc = graph.vertices.sparkContext
     val sourcesInitMapBC = sc.broadcast(sourcesInitMap)
-    val edgeWeights = Array(1.0, 1.0, 1.0, 1.0)
-    val edgeWeightsBC = sc.broadcast(edgeWeights) // sc?
-    val totalWeight = 4.0
-    val totalWeightBC = sc.broadcast(totalWeight)
 
-    // Initialize the Personalized PageRank graph with:
-    // each edge transition probability: attribute_weight/(outDegree * total_weight)
-    // each source vertex with attribute 1.0.
+    /* Initialize the Personalized PageRank graph with:
+       each edge transition probability: attribute_weight/(outDegree * total_weight)
+       each source vertex with attribute 1.0.
+    */
     print("[Logging]: getting attributeGraph: ")
     val attributeGraph = graph
       // Associate the degree with each vertex
@@ -89,7 +90,7 @@ object PersonalizedPageRank {
     Iterator[(VertexId, SV[Double])] = {
       val maskResidualVec = edge.dstAttr._3
 
-      if (maskResidualVec.activeSize != 0) {  // 存在需要push back的顶点，继续发送消息
+      if (maskResidualVec.activeSize != 0) {  // 存在需要push back的顶点,继续发送消息
         val msgSumOpt = maskResidualVec *:* edge.attr *:* (1.0 - resetProb)
         Iterator((edge.srcId, msgSumOpt))
       } else {
