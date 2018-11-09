@@ -91,7 +91,8 @@ object PersonalizedPageRank extends Logging {
     }
 
     // sendMsg func
-    def sendMessage(edge: EdgeTriplet[(SV[Double], SV[Double], SV[Double]), Double]): Iterator[(VertexId, SV[Double])] = {
+    def sendMessage(edge: EdgeTriplet[(SV[Double], SV[Double], SV[Double]), Double]):
+    Iterator[(VertexId, SV[Double])] = {
       val maskResidualVec = edge.dstAttr._3
 
       if (maskResidualVec.activeSize != 0) {  // 需要push back
@@ -113,7 +114,8 @@ object PersonalizedPageRank extends Logging {
       activeDirection = EdgeDirection.In)(
         vprog = vertexProgram,
         sendMsg = sendMessage,
-        mergeMsg = mergeMessage)
+        mergeMsg = mergeMessage
+    )
       .mapVertices((_, attr) => attr._1)
 
 //    personalizedPageRankGraph.vertices.collect.foreach(println(_))

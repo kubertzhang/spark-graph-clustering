@@ -37,6 +37,8 @@ object GraphClustering extends Logging{
     val defaultVertex = ("Missing", -1L)
     val graph: Graph[(String, Long), Long] = Graph(vertices, edges, defaultVertex)
 
+    val hubGraph = graph.subgraph(vpred = (vid, attr) => attr._2 == 0)
+
 //    graph.vertices.collect.foreach(println(_))
 //    println(graph.vertices.collect.length)
 //    println(sources1.length)
@@ -47,11 +49,12 @@ object GraphClustering extends Logging{
     val tol: Double = 0.001
 
     val sources = graph.vertices.filter(v => v._2._2 == 0L).keys.collect()   // 提取主类节点计算ppr
-//    println(sources.length)
 //    sources.sorted.foreach(println(_))
 
     val personalizedPageRankGraph = PersonalizedPageRank
       .basicParallelPersonalizedPageRank(graph, graph.numVertices.toInt, sources, resetProb, tol)
+      .mask(hubGraph)
+//    personalizedPageRankGraph.vertices.keys.collect().sorted.foreach(println(_))
 
     // clustering
     // *********************************************************************************
@@ -79,6 +82,7 @@ object GraphClustering extends Logging{
       }
     )
 //    epsilonEdges.collect.foreach(println(_))
+
     val minPts = 3
     val minPtsBC = sc.broadcast(minPts)
 
@@ -89,18 +93,42 @@ object GraphClustering extends Logging{
       .mapVertices(
         (vid, attr) => if(attr._2 >= minPtsBC.value) (1L, vid) else (0L, -1L)
       )
-
-//    labeledEpsilonNeighborGraph.vertices.collect.foreach(println(_))
+//    labeledEpsilonNeighborGraph.vertices.collect.sorted.foreach(println(_))
 
     // dbscan
     // Define functions needed to implement clustering in the GraphX with Pregel
     val initialMessage = -1L
 
     // vprog func
-    def vertexProgram(vid: VertexId, attr: (Long, Long), msg: Long):
-    Long = {
-      val newAttr = max(attr, msg)
+    def vertexProgram(vid: VertexId, attr: (Long, Long), msg: Long): (Long, Long) =
+      (attr._1, max(attr._2, msg))
+
+    // sendMsg func
+    def sendMessage(edge: EdgeTriplet[(Long, Long), Double]): Iterator[(VertexId, Long)] = {
+      if(edge.srcAttr._1 == 1L && (edge.srcAttr._2 > edge.dstAttr._2)){
+        Iterator((edge.dstId, edge.srcAttr._2))
+      }
+      else{
+        Iterator.empty
+      }
     }
+
+    // mergeMsg func
+    def mergeMessage(a: Long, b: Long): Long = max(a, b)
+
+    // Execute a dynamic version of Pregel
+    print("[Logging]: getting clustering graph: ")
+    val clusteringGraph = Pregel(
+      graph = labeledEpsilonNeighborGraph,
+      initialMsg = initialMessage,
+      activeDirection = EdgeDirection.Out)(
+        vprog = vertexProgram,
+        sendMsg = sendMessage,
+        mergeMsg = mergeMessage
+    )
+      .mapVertices((_, attr) => attr._2)
+    println("done!")
+//    clusteringGraph.vertices.collect.sorted.foreach(println(_))
 
 
     // dblp
