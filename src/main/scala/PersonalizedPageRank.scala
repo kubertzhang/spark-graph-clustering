@@ -1,12 +1,9 @@
 import scala.reflect.ClassTag
 import breeze.linalg.{SparseVector => SV}
 import breeze.linalg._
-import breeze.numerics._
 import org.apache.spark.graphx._
-import org.apache.spark.internal.Logging
-import org.apache.spark.ml.linalg.{Vector, Vectors}
 
-object PersonalizedPageRank extends Logging {
+object PersonalizedPageRank {
   def basicParallelPersonalizedPageRank[VD: ClassTag, ED: ClassTag](
     graph: Graph[VD, ED],
     graphVerticesNum: Int,
@@ -35,16 +32,15 @@ object PersonalizedPageRank extends Logging {
 
     val sc = graph.vertices.sparkContext
     val sourcesInitMapBC = sc.broadcast(sourcesInitMap)
-    var edgeWeights = Array(1.0, 1.0, 1.0, 1.0)
+    val edgeWeights = Array(1.0, 1.0, 1.0, 1.0)
     val edgeWeightsBC = sc.broadcast(edgeWeights) // sc?
     val totalWeight = 4.0
     val totalWeightBC = sc.broadcast(totalWeight)
-    // graph: Graph[(String, Long), Long]
 
     // Initialize the Personalized PageRank graph with:
     // each edge transition probability: attribute_weight/(outDegree * total_weight)
     // each source vertex with attribute 1.0.
-    println("[Logging]: get attributeGraph")
+    print("[Logging]: getting attributeGraph: ")
     val attributeGraph = graph
       // Associate the degree with each vertex
       .outerJoinVertices(graph.outDegrees) {
@@ -57,6 +53,7 @@ object PersonalizedPageRank extends Logging {
       .mapVertices(
         (vid, _) => sourcesInitMapBC.value.getOrElse(vid, (zeros, zeros, zeros))
       )
+    println("done!")
 
     // Define functions needed to implement Personalized PageRank in the GraphX with Pregel
     // initialMsg
@@ -73,18 +70,15 @@ object PersonalizedPageRank extends Logging {
       curResidualVec.activeIterator.filter(kv => kv._2 >= tol).foreach(kv => maskResVecBuilder.add(kv._1, kv._2))
       maskResVecBuilder.length = graphVerticesNum
       val maskResidualVec = maskResVecBuilder.toSparseVector
-
 //      println(maskResidualVec)
 
       val newEstimateVec = oldEstimateVec +:+ (maskResidualVec *:* resetProb)
-
 //      println(newEstimateVec)
 
       val newResVecBuilder = new VectorBuilder[Double](length = -1)
       curResidualVec.activeIterator.filter(kv => kv._2 < tol).foreach(kv => newResVecBuilder.add(kv._1, kv._2))
       newResVecBuilder.length = graphVerticesNum
       val newResidualVec = newResVecBuilder.toSparseVector
-
 //      println(newResidualVec)
 
       (newEstimateVec, newResidualVec, maskResidualVec)
@@ -95,7 +89,7 @@ object PersonalizedPageRank extends Logging {
     Iterator[(VertexId, SV[Double])] = {
       val maskResidualVec = edge.dstAttr._3
 
-      if (maskResidualVec.activeSize != 0) {  // 需要push back
+      if (maskResidualVec.activeSize != 0) {  // 存在需要push back的顶点，继续发送消息
         val msgSumOpt = maskResidualVec *:* edge.attr *:* (1.0 - resetProb)
         Iterator((edge.srcId, msgSumOpt))
       } else {
@@ -107,7 +101,7 @@ object PersonalizedPageRank extends Logging {
     def mergeMessage(a: SV[Double], b: SV[Double]): SV[Double] = a +:+ b
 
     // Execute a dynamic version of Pregel
-    println("[Logging]: run Pregel func ... ")
+    print("[Logging]: getting personalizedPageRankGraph: ")
     val personalizedPageRankGraph = Pregel(
       graph = attributeGraph,
       initialMsg = initialMessage,
@@ -117,7 +111,7 @@ object PersonalizedPageRank extends Logging {
         mergeMsg = mergeMessage
     )
       .mapVertices((_, attr) => attr._1)
-
+    println("done!")
 //    personalizedPageRankGraph.vertices.collect.foreach(println(_))
 
     personalizedPageRankGraph
