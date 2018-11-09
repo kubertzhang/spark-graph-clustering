@@ -55,7 +55,7 @@ object GraphClustering extends Logging{
 
     // clustering
     // *********************************************************************************
-    val epsilon = 0.2
+    val epsilon = 0.005
     val edgeBuffer = ArrayBuffer[List[Int]]()
     personalizedPageRankGraph.vertices.collect.foreach(
       vid_scores => {
@@ -79,18 +79,28 @@ object GraphClustering extends Logging{
       }
     )
 //    epsilonEdges.collect.foreach(println(_))
+    val minPts = 3
+    val minPtsBC = sc.broadcast(minPts)
 
-    val epsilonNeighborGraph = Graph.fromEdges[Long, Double](epsilonEdges, -1L)
+    val epsilonNeighborGraph = Graph.fromEdges[(Long, Long), Double](epsilonEdges, (-1L, -1L))
+    val labeledEpsilonNeighborGraph = epsilonNeighborGraph.outerJoinVertices(epsilonNeighborGraph.outDegrees){
+      (vid, attr, deg) => (attr._1, deg.getOrElse(0))
+    }
+      .mapVertices(
+        (vid, attr) => if(attr._2 >= minPtsBC.value) (1L, vid) else (0L, -1L)
+      )
+
+//    labeledEpsilonNeighborGraph.vertices.collect.foreach(println(_))
 
     // dbscan
     // Define functions needed to implement clustering in the GraphX with Pregel
     val initialMessage = -1L
 
     // vprog func
-//    def vertexProgram(vid: VertexId, attr: Long, msg: Long):
-//    Long = {
-//      val newAttr = max(attr, msg)
-//    }
+    def vertexProgram(vid: VertexId, attr: (Long, Long), msg: Long):
+    Long = {
+      val newAttr = max(attr, msg)
+    }
 
 
     // dblp
