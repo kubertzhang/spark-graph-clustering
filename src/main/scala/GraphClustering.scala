@@ -7,6 +7,7 @@ import PersonalizedPageRank._
 import org.apache.spark.internal.Logging
 import breeze.linalg.{SparseVector => SV}
 import scala.collection.mutable.ArrayBuffer
+import scala.reflect.ClassTag
 
 object GraphClustering extends Logging{
   def main(args: Array[String]): Unit = {
@@ -32,16 +33,33 @@ object GraphClustering extends Logging{
     val threshold = 0.001
     var mse = Double.MaxValue
     var numIterator = 0
+    val hubPersonalizedPageRankGraphMap = Map[String, Graph[(SV[Double], SV[Double]), Double]]()
+    val approach = "basic"
 
     while(mse > threshold && (numIterator < 2)){
       val curEdgeWeights = newEdgeWeights
 
       // personalized page rank
       // *********************************************************************************
-      val personalizedPageRankGraph = PersonalizedPageRank
-        .basicParallelPersonalizedPageRank(sc, graph, curEdgeWeights, sources, resetProb, tol)
-        .mask(hubGraph)
-      //    personalizedPageRankGraph.vertices.keys.collect().sorted.foreach(println(_))
+      val personalizedPageRankGraph: Graph[SV[Double], Double] = approach match {
+        case "basic" =>
+          // 1. basic approach
+          PersonalizedPageRank
+            .basicParallelPersonalizedPageRank(sc, graph, curEdgeWeights, sources, resetProb, tol)
+            .mask(hubGraph)
+          //    personalizedPageRankGraph.vertices.keys.collect().sorted.foreach(println(_))
+        case "incremental" =>
+          // 2. incremental approach
+          if(!hubPersonalizedPageRankGraphMap.contains("hub")){
+            hubPersonalizedPageRankGraphMap("hub") =
+              PersonalizedPageRank.hubPersonalizedPageRank(sc, graph, curEdgeWeights, sources, resetProb, tol)
+                .cache()
+          }
+          PersonalizedPageRank
+            .incrementalParallelPersonalizedPageRank(sc, graph, hubPersonalizedPageRankGraphMap("hub"),
+              curEdgeWeights, sources, resetProb, tol)
+        //case unexpected => Option
+      }
 
       // clustering
       // *********************************************************************************

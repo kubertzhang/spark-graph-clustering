@@ -5,13 +5,13 @@ import org.apache.spark.SparkContext
 import org.apache.spark.graphx._
 
 object PersonalizedPageRank {
-  def basicParallelPersonalizedPageRank[VD: ClassTag, ED: ClassTag](
+  def runParallelPersonalizedPageRank[VD: ClassTag, ED: ClassTag](
     sc: SparkContext,
     graph: Graph[VD, ED],
     edgeWeights: Array[Double],
     sources: Array[VertexId],
     resetProb: Double = 0.2,
-    tol: Double = 0.001): Graph[SV[Double], Double] = {
+    tol: Double = 0.001): Graph[(SV[Double], SV[Double], SV[Double]), Double] = {
 
     require(sources.nonEmpty, s"The list of sources must be non-empty," +
       s" but got ${sources.mkString("[", ",", "]")}")
@@ -111,10 +111,45 @@ object PersonalizedPageRank {
         sendMsg = sendMessage,
         mergeMsg = mergeMessage
     )
-      .mapVertices((_, attr) => attr._1)
+//      .mapVertices((_, attr) => attr._1)
     println("done!")
 //    personalizedPageRankGraph.vertices.collect.foreach(println(_))
 
     personalizedPageRankGraph
+  }
+
+  def basicParallelPersonalizedPageRank[VD: ClassTag, ED: ClassTag](
+    sc: SparkContext,
+    graph: Graph[VD, ED],
+    edgeWeights: Array[Double],
+    sources: Array[VertexId],
+    resetProb: Double = 0.2,
+    tol: Double = 0.001): Graph[SV[Double], Double] = {
+
+      runParallelPersonalizedPageRank(sc, graph, edgeWeights, sources, resetProb, tol)
+        .mapVertices((_, attr) => attr._1)
+  }
+
+  def hubPersonalizedPageRank[VD: ClassTag, ED: ClassTag](
+    sc: SparkContext,
+    graph: Graph[VD, ED],
+    edgeWeights: Array[Double],
+    sources: Array[VertexId],
+    resetProb: Double = 0.2,
+    tol: Double = 0.001): Graph[(SV[Double], SV[Double]), Double] = {
+
+      runParallelPersonalizedPageRank(sc, graph, edgeWeights, sources, resetProb, tol)
+        .mapVertices((_, attr) => (attr._1, attr._2))
+  }
+
+  def incrementalParallelPersonalizedPageRank[VD: ClassTag, ED: ClassTag](
+    sc: SparkContext,
+    graph: Graph[VD, ED],
+    hubGraph: Graph[(SV[Double], SV[Double]), Double],
+    edgeWeights: Array[Double],
+    sources: Array[VertexId],
+    resetProb: Double = 0.2,
+    tol: Double = 0.001): Graph[SV[Double], Double] = {
+
   }
 }
