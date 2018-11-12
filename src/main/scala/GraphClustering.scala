@@ -1,14 +1,9 @@
+import util.Parameters
 import org.apache.spark.SparkConf
 import org.apache.spark.SparkContext
 import org.apache.spark.graphx._
-import org.apache.spark.rdd.RDD
-import breeze.linalg._
 import org.apache.spark.internal.Logging
 import breeze.linalg.{SparseVector => SV}
-import scala.collection.mutable.ArrayBuffer
-import scala.reflect.ClassTag
-import scala.collection.immutable.{Map => immutableMap}
-
 
 object GraphClustering extends Logging{
   def main(args: Array[String]): Unit = {
@@ -18,23 +13,24 @@ object GraphClustering extends Logging{
 
     // para
     // *********************************************************************************
-    val resetProb: Double = 0.2
-    val tol: Double = 0.001
-    val epsilon = 0.005
-    val minPts = 3
+    val args_ : Array[String] = Array("config/run-parameters.txt")
+    val parameters = new Parameters(args_)
 
-    val initialEdgeWeights = Array(1.0, 1.0, 1.0, 1.0)
-    var edgeWeights = Array(1.0, 1.0, 1.0, 1.0)
-    val threshold = 0.001
-    var mse = Double.MaxValue
-    var numIterator = 0
-//    val approach = "basic"
-    val approach = "incremental"
+    val verticesDataPath = parameters.verticesDataPath
+    val edgesDataPath = parameters.edgesDataPath
+
+    val resetProb = parameters.resetProb
+    val tol = parameters.tol
+    val epsilon = parameters.epsilon
+    val minPts = parameters.minPts
+    val threshold = parameters.threshold
+    val approach = parameters.approach
+
+    val initialEdgeWeights = parameters.initialEdgeWeights
+    var edgeWeights = initialEdgeWeights
 
     // load graph
     // *********************************************************************************
-    val verticesDataPath = "resources/dblp/test/dblp-vertices.txt"
-    val edgesDataPath = "resources/dblp/test/dblp-edges.txt"
     val originalGraph: Graph[(String, Long), Long] = GraphLoader.originalGraph(sc, verticesDataPath, edgesDataPath)
     val hubGraph: Graph[(String, Long), Long] = GraphLoader.hubGraph(originalGraph)
     val sources = hubGraph.vertices.keys.collect().sorted  // 提取主类顶点,按编号升序排列,保证id和vertexId一致
@@ -44,6 +40,8 @@ object GraphClustering extends Logging{
       .hubPersonalizedPageRank(sc, originalGraph, sourcesBC, edgeWeights, resetProb, tol)
       .cache()
 
+    var mse = Double.MaxValue
+    var numIterator = 0
     while(mse > threshold && (numIterator < 2)){
       // personalized page rank
       // *********************************************************************************
@@ -82,6 +80,9 @@ object GraphClustering extends Logging{
       println(s"[Logging]: graph clustering conduct iteration $numIterator")
       println("**************************************************************************")
     }
+
+    // clustering metric
+    // *********************************************************************************
     sc.stop()
   }
 }
