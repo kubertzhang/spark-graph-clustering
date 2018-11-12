@@ -1,0 +1,13 @@
+verticesDataPath: resources/dblp/test/dblp-vertices.txt
+edgesDataPath: resources/dblp/test/dblp-edges.txt
+
+resetProb: 0.2
+tol: 0.001
+
+epsilon: 0.005
+minPts: 3
+
+threshold: 0.001
+approach: basic
+
+initialEdgeWeights: 1.0,1.0,1.0,1.0
