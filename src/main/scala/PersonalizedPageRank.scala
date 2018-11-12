@@ -38,18 +38,15 @@ object PersonalizedPageRank {
         .foreach(kv => maskResVecBuilder.add(kv._1, kv._2))
       maskResVecBuilder.length = sourcesNumBC.value
       val maskResidualVec = maskResVecBuilder.toSparseVector
-//      println(maskResidualVec)
 
       val newEstimateVec = oldEstimateVec +:+ (maskResidualVec *:* resetProb)
-//      println(newEstimateVec)
 
       val newResVecBuilder = new VectorBuilder[Double](length = -1)
-      // 只push back主类顶点: vertexType == 0, 属性类顶点的residual value保留
+      // 只push back主类顶点, 属性类顶点的residual value保留
       curResidualVec.activeIterator.filter(kv => (vertexType != 0) || (kv._2 < tol))
         .foreach(kv => newResVecBuilder.add(kv._1, kv._2))
       newResVecBuilder.length = sourcesNumBC.value
       val newResidualVec = newResVecBuilder.toSparseVector
-//      println(newResidualVec)
 
       (newEstimateVec, newResidualVec, maskResidualVec, vertexType)
     }
@@ -65,16 +62,13 @@ object PersonalizedPageRank {
       curResidualVec.activeIterator.filter(kv => kv._2 >= tol).foreach(kv => maskResVecBuilder.add(kv._1, kv._2))
       maskResVecBuilder.length = sourcesNumBC.value
       val maskResidualVec = maskResVecBuilder.toSparseVector
-//      println(maskResidualVec)
 
       val newEstimateVec = oldEstimateVec +:+ (maskResidualVec *:* resetProb)
-//      println(newEstimateVec)
 
       val newResVecBuilder = new VectorBuilder[Double](length = -1)
       curResidualVec.activeIterator.filter(kv => kv._2 < tol).foreach(kv => newResVecBuilder.add(kv._1, kv._2))
       newResVecBuilder.length = sourcesNumBC.value
       val newResidualVec = newResVecBuilder.toSparseVector
-//      println(newResidualVec)
 
       (newEstimateVec, newResidualVec, maskResidualVec, attr._4)
     }

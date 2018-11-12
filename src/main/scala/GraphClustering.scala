@@ -72,6 +72,7 @@ object GraphClustering extends Logging{
       val oldEdgeWeights = edgeWeights
       edgeWeights = EdgeWeightUpdate.updateEdgeWeight(clusteringGraph, edgeWeights)
 
+      // mse
       for(i <- edgeWeights.indices){
         mse += math.pow(edgeWeights(i) - oldEdgeWeights(i), 2)
       }
