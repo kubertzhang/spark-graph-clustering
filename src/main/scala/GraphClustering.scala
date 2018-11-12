@@ -46,7 +46,7 @@ object GraphClustering extends Logging{
 
     var mse = Double.MaxValue
     var numIterator = 0
-    while(mse > threshold && (numIterator < 2)){
+    while(mse > threshold && (numIterator < 1)){
       // personalized page rank
       // *********************************************************************************
       val personalizedPageRankGraph: Graph[SV[Double], Double] = approach match {
@@ -69,10 +69,22 @@ object GraphClustering extends Logging{
       val clusteringGraph: Graph[Long, Double] =
       Clustering.clusterGraph(sc, personalizedPageRankGraph, epsilon, minPts)
 
+//      clusteringGraph.vertices.filter(attr => attr._2 != -1L).collect.foreach(println(_))
+
       // edge weight update
       // *********************************************************************************
+      val edgeWeightUpdateGraph: Graph[(Long, Long), Long] = originalGraph.mapVertices(
+        (vid, attr) => (attr._2, -1L)
+      )
+      .joinVertices(clusteringGraph.vertices){
+        (vid, leftAttr, rightAttr) => (leftAttr._1, rightAttr)
+      }
+
+//      println("**************************************************************************")
+//      edgeWeightUpdateGraph.vertices.filter(attr => attr._2._2 > -1) .collect.foreach(println(_))
+
       val oldEdgeWeights = edgeWeights
-      edgeWeights = EdgeWeightUpdate.updateEdgeWeight(clusteringGraph, edgeWeights)
+      edgeWeights = EdgeWeightUpdate.updateEdgeWeight(edgeWeightUpdateGraph, edgeWeights)
 
       // mse
       for(i <- edgeWeights.indices){
