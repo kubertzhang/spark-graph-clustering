@@ -8,12 +8,9 @@ object Clustering {
   def clusterGraph(
     sc: SparkContext,
     personalizedPageRankGraph: Graph[SV[Double], Double],
-    sources: Array[VertexId],
     epsilon: Double = 0.005,
     minPts: Long): Graph[Long, Double] ={
 
-    require(sources.nonEmpty, s"The list of sources must be non-empty," +
-      s" but got ${sources.mkString("[", ",", "]")}")
     require(epsilon >= 0 && epsilon <= 1, s"Epsilon must belong to [0, 1], but got $epsilon")
 
     val minPtsBC = sc.broadcast(minPts)
@@ -25,7 +22,8 @@ object Clustering {
         scores.activeIterator.foreach(
           uid_score =>{
             val (uid, score) = uid_score
-            if(score >= epsilon && uid != vid && sources.contains(uid)) {  // 筛选上可以考虑继续优化
+            // 筛选主类顶点
+            if(score >= epsilon && uid != vid) {  // 筛选上可以考虑继续优化
               //              println(s"vid = $vid, uid = ${uid_score._1}, score = ${uid_score._2}")
               edgeBuffer += List(vid.toInt, uid)
               edgeBuffer += List(uid, vid.toInt)
