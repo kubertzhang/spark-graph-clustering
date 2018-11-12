@@ -31,7 +31,11 @@ object GraphClustering extends Logging{
 
     // load graph
     // *********************************************************************************
-    val originalGraph: Graph[(String, Long), Long] = GraphLoader.originalGraph(sc, verticesDataPath, edgesDataPath)
+    val originalGraph: Graph[(String, Long), Long] = GraphLoader
+      .originalGraph(sc, verticesDataPath, edgesDataPath)
+      // partition
+//      .partitionBy(PartitionStrategy.EdgePartition2D)
+      .cache()
     val hubGraph: Graph[(String, Long), Long] = GraphLoader.hubGraph(originalGraph)
     val sources = hubGraph.vertices.keys.collect().sorted  // 提取主类顶点,按编号升序排列,保证id和vertexId一致
     val sourcesBC = sc.broadcast(sources)
