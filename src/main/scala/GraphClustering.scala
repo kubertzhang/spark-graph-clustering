@@ -37,9 +37,8 @@ object GraphClustering extends Logging{
     val edgesDataPath = "resources/dblp/test/dblp-edges.txt"
     val originalGraph: Graph[(String, Long), Long] = GraphLoader.originalGraph(sc, verticesDataPath, edgesDataPath)
     val hubGraph: Graph[(String, Long), Long] = GraphLoader.hubGraph(originalGraph)
-    val sources = hubGraph.vertices.keys.collect()  // 提取主类顶点
+    val sources = hubGraph.vertices.keys.collect().sorted  // 提取主类顶点,按编号升序排列,保证id和vertexId一致
     val sourcesBC = sc.broadcast(sources)
-//    sources.sorted.foreach(println(_))
 
     val hubPersonalizedPageRankGraph = PersonalizedPageRank
       .hubPersonalizedPageRank(sc, originalGraph, sourcesBC, edgeWeights, resetProb, tol)
