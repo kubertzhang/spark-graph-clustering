@@ -4,9 +4,9 @@ version := "0.1"
 
 libraryDependencies ++= Seq(
   // spark-core
-  "org.apache.spark" %% "spark-core" % "2.3.2",
+  "org.apache.spark" %% "spark-core" % "2.2.0",
   // graphx
-  "org.apache.spark" %% "spark-graphx" % "2.3.2",
+  "org.apache.spark" %% "spark-graphx" % "2.2.0",
   // Breeze
   "org.scalanlp" %% "breeze" % "0.13.2",
   "org.scalanlp" %% "breeze-natives" % "0.13.2",
