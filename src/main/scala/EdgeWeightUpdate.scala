@@ -8,17 +8,11 @@ object EdgeWeightUpdate {
 
     val hubGraph = edgeWeightUpdateGraph.subgraph(vpred = (vid, attr) => attr._1 == 0)
     val hubvertex_num = hubGraph.numVertices
-    val clusterid_list = hubGraph.vertices.mapValues((a, b) => b._2).map(x => (x._2, 1L)).reduceByKey(_+_).map(x => x._1).collect()
+    val clusterid_list = hubGraph.vertices.mapValues((a, b) => b._2).map(x => (x._2, 1L))
+      .reduceByKey(_+_).map(x => x._1).collect()
     var entropyai = Array(0.0, 0.0, 0.0, 0.0)
     var total_entropy = 0.0
     var newweight = new Array[Double](4)
-
-    //println(clusterid_list.length)
-    println("oldweight: ")
-    for(x <- oldEdgeWeights){
-      print(s"$x\t")
-    }
-    println()
 
     for (i <- 1 to 3){// number of attributes is 3
       //val vertexcount = graph.vertices.map(x => x._2._1 == i).count()
@@ -38,7 +32,8 @@ object EdgeWeightUpdate {
         totaledge_num = alledges.map(x => x._2).reduce(_+_)
         //println ("totaledge_num:" + totaledge_num)
 
-        val attrvertex : VertexRDD[Double] = edgeWeightUpdateGraph.aggregateMessages[Double]( // num of edges between certain vertex and cluster_k
+        // num of edges between certain vertex and cluster_k
+        val attrvertex : VertexRDD[Double] = edgeWeightUpdateGraph.aggregateMessages[Double](
           triplet => {
             if(triplet.srcAttr._2 == k && triplet.dstAttr._1 == i){
               triplet.sendToDst(1.0)
@@ -69,13 +64,8 @@ object EdgeWeightUpdate {
     newweight(0) = 1.0
     for(i <- 1 to 3){
       val bef = oldEdgeWeights(i)
-      newweight(i) = (bef + inverse_entropy(i)/ total_inverse_entropy) / 2.0
+      newweight(i) = (bef + inverse_entropy(i)/ total_inverse_entropy * 3.0) /2.0
     }
-    println("newweight:" )
-    for(x <- newweight){
-      print(s"$x\t")
-    }
-    println()
 
     newweight
   }

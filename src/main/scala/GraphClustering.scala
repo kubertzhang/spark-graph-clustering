@@ -26,16 +26,19 @@ object GraphClustering extends Logging{
     val minPts = parameters.minPts
     val threshold = parameters.threshold
     val approach = parameters.approach
+//    val approach = "basic"
+//    val approach = "incremental"
 
     val initialEdgeWeights = parameters.initialEdgeWeights
     var edgeWeights = initialEdgeWeights
 
+    println("**************************************************************************")
     // load graph
     // *********************************************************************************
     val originalGraph: Graph[(String, Long), Long] = GraphLoader
       .originalGraph(sc, verticesDataPath, edgesDataPath)
       // partition
-//      .partitionBy(PartitionStrategy.EdgePartition2D)
+      .partitionBy(PartitionStrategy.EdgePartition2D)
       .cache()
     val hubGraph: Graph[(String, Long), Long] = GraphLoader.hubGraph(originalGraph)
     val sources = hubGraph.vertices.keys.collect().sorted  // 提取主类顶点,按编号升序排列,保证id和vertexId一致
@@ -47,7 +50,9 @@ object GraphClustering extends Logging{
 
     var mse = Double.MaxValue
     var numIterator = 0
+    val timeBegin = System.currentTimeMillis
     while(mse > threshold){
+      numIterator += 1
       // personalized page rank
       // *********************************************************************************
       val personalizedPageRankGraph: Graph[SV[Double], Double] = approach match {
@@ -88,19 +93,24 @@ object GraphClustering extends Logging{
       edgeWeights = EdgeWeightUpdate.updateEdgeWeight(edgeWeightUpdateGraph, edgeWeights)
 
       // mse
+      mse = 0.0
       for(i <- edgeWeights.indices){
         mse += math.pow(edgeWeights(i) - oldEdgeWeights(i), 2)
       }
       mse = math.sqrt(mse) / edgeWeights.length
-      println(s"mse = $mse")
 
-      numIterator += 1
-      println(s"[Logging]: graph clustering conduct iteration $numIterator")
+      print(s"[result-$approach-$numIterator-edgeWeights]: ")
+      for(x <- edgeWeights){ print(s"$x\t") }
+      println()
+      println(s"[result-$approach-$numIterator-mse]: $mse")
       println("**************************************************************************")
     }
+    val timeEnd = System.currentTimeMillis
+    println(s"[result-$approach-running time]: " + (timeEnd - timeBegin))
 
-    // clustering metric
+    // clustering metric & result survey
     // *********************************************************************************
+    println("**************************************************************************")
     sc.stop()
   }
 }
