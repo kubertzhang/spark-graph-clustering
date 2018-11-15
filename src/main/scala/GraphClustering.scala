@@ -7,7 +7,7 @@ import breeze.linalg.{SparseVector => SV}
 
 object GraphClustering extends Logging{
   def main(args: Array[String]): Unit = {
-    val conf = new SparkConf().setAppName("Graph Clustering").setMaster("local[*]")
+    val conf = new SparkConf().setAppName("Graph Clustering")
     val sc = new SparkContext(conf)
     sc.setLogLevel("ERROR")
 
@@ -69,7 +69,7 @@ object GraphClustering extends Logging{
       val clusteringGraph: Graph[Long, Double] =
       Clustering.clusterGraph(sc, personalizedPageRankGraph, epsilon, minPts)
 
-//      clusteringGraph.vertices.filter(attr => attr._2 != -1L).collect.foreach(println(_))
+      clusteringGraph.vertices.filter(attr => attr._2 != -1L).collect.foreach(println(_))
 
       // edge weight update
       // *********************************************************************************
