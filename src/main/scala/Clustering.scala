@@ -60,7 +60,6 @@ object Clustering {
     }
 
     // Execute a dynamic version of Pregel
-    print("[Logging]: getting clustering graph: ")
     val clusteringGraph = Pregel(
       graph = labeledEpsilonNeighborGraph,
       initialMsg = -1L,
@@ -70,7 +69,6 @@ object Clustering {
         mergeMsg = (a, b) => math.max(a, b)
     )
       .mapVertices((_, attr) => attr._2)
-    println("done!")
 //    clusteringGraph.vertices.collect.sorted.foreach(println(_))
 
     clusteringGraph

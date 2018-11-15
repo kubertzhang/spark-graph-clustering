@@ -69,7 +69,6 @@ object GraphLoader {
        each edge transition probability: attribute_weight/(outDegree * total_weight)
        each source vertex with attribute 1.0.
     */
-    print("[Logging]: getting attributeGraph: ")
     val attributeGraph = graph
       // Associate the degree with each vertex
       .outerJoinVertices(graph.outDegrees) {
@@ -88,7 +87,6 @@ object GraphLoader {
       (vid, leftAttr, rightAttr) => (leftAttr._1, leftAttr._2, leftAttr._3, rightAttr.get._2)
     }
     //    attributeGraph.vertices.collect.foreach(println(_))
-    println("done!")
 
     attributeGraph
   }

@@ -7,7 +7,8 @@ import breeze.linalg.{SparseVector => SV}
 
 object GraphClustering extends Logging{
   def main(args: Array[String]): Unit = {
-    val conf = new SparkConf().setAppName("Graph Clustering")
+    val conf = new SparkConf().setAppName("Graph Clustering").setMaster("local[*]")  // master: local
+//    val conf = new SparkConf().setAppName("Graph Clustering")                        // master: cluster
     val sc = new SparkContext(conf)
     sc.setLogLevel("ERROR")
 
@@ -46,7 +47,7 @@ object GraphClustering extends Logging{
 
     var mse = Double.MaxValue
     var numIterator = 0
-    while(mse > threshold && (numIterator < 1)){
+    while(mse > threshold){
       // personalized page rank
       // *********************************************************************************
       val personalizedPageRankGraph: Graph[SV[Double], Double] = approach match {
@@ -69,7 +70,7 @@ object GraphClustering extends Logging{
       val clusteringGraph: Graph[Long, Double] =
       Clustering.clusterGraph(sc, personalizedPageRankGraph, epsilon, minPts)
 
-      clusteringGraph.vertices.filter(attr => attr._2 != -1L).collect.foreach(println(_))
+//      clusteringGraph.vertices.filter(attr => attr._2 != -1L).collect.foreach(println(_))
 
       // edge weight update
       // *********************************************************************************
@@ -91,6 +92,7 @@ object GraphClustering extends Logging{
         mse += math.pow(edgeWeights(i) - oldEdgeWeights(i), 2)
       }
       mse = math.sqrt(mse) / edgeWeights.length
+      println(s"mse = $mse")
 
       numIterator += 1
       println(s"[Logging]: graph clustering conduct iteration $numIterator")

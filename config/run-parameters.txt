@@ -4,8 +4,8 @@ edgesDataPath: resources/dblp/test/dblp-edges.txt
 resetProb: 0.2
 tol: 0.001
 
-epsilon: 0.005
-minPts: 3
+epsilon: 0.003
+minPts: 5
 
 threshold: 0.001
 approach: basic

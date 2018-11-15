@@ -101,7 +101,6 @@ object PersonalizedPageRank {
     def mergeMessage(a: SV[Double], b: SV[Double]): SV[Double] = a +:+ b
 
     // Execute a dynamic version of Pregel
-    print("[Logging]: getting personalizedPageRankGraph: ")
     val personalizedPageRankGraph = Pregel(
       graph = attributeGraph,
       initialMsg = initialMessage,
@@ -110,7 +109,6 @@ object PersonalizedPageRank {
         sendMsg = sendMessage,
         mergeMsg = mergeMessage
     )
-    println("done!")
 //    personalizedPageRankGraph.vertices.collect.foreach(println(_))
 
     personalizedPageRankGraph
