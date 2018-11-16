@@ -25,28 +25,41 @@ object GraphClustering extends Logging{
     val epsilon = parameters.epsilon
     val minPts = parameters.minPts
     val threshold = parameters.threshold
-    val approach = parameters.approach
+//    val approach = parameters.approach
 //    val approach = "basic"
 //    val approach = "incremental"
+    val approach = "approximate"
 
     val initialEdgeWeights = parameters.initialEdgeWeights
     var edgeWeights = initialEdgeWeights
 
+//    println(s"parameters: ${parameters.toString}")
+//    logInfo(s"parameters: ${parameters.toString}")
+
     println("**************************************************************************")
+    logInfo("**************************************************************************")
     // load graph
     // *********************************************************************************
     val originalGraph: Graph[(String, Long), Long] = GraphLoader
       .originalGraph(sc, verticesDataPath, edgesDataPath)
-      // partition
-      .partitionBy(PartitionStrategy.EdgePartition2D)
+      .partitionBy(PartitionStrategy.EdgePartition2D)  // partition
       .cache()
-    val hubGraph: Graph[(String, Long), Long] = GraphLoader.hubGraph(originalGraph)
+    val hubGraph: Graph[(String, Long), Long] = GraphLoader.hubGraph(originalGraph).cache()
     val sources = hubGraph.vertices.keys.collect().sorted  // 提取主类顶点,按编号升序排列,保证id和vertexId一致
+//    val sources = hubGraph.vertices.keys.take(100000)
     val sourcesBC = sc.broadcast(sources)
 
+    // incremental
     val hubPersonalizedPageRankGraph = PersonalizedPageRank
       .hubPersonalizedPageRank(sc, originalGraph, sourcesBC, edgeWeights, resetProb, tol)
       .cache()
+
+    // approximate
+    val reservePersonalizedPageRankGraph = PersonalizedPageRank
+      .reservePersonalizedPageRank(sc, originalGraph, sourcesBC, edgeWeights, resetProb, tol)
+      .cache()
+
+    var finalClusteringGraph: Graph[Long, Double] = null
 
     var mse = Double.MaxValue
     var numIterator = 0
@@ -55,6 +68,7 @@ object GraphClustering extends Logging{
       numIterator += 1
       // personalized page rank
       // *********************************************************************************
+      val timePPRBegin = System.currentTimeMillis
       val personalizedPageRankGraph: Graph[SV[Double], Double] = approach match {
         case "basic" =>
           // 1. basic approach
@@ -68,29 +82,58 @@ object GraphClustering extends Logging{
             .incrementalPersonalizedPageRank(sc, hubPersonalizedPageRankGraph, initialEdgeWeights,
               edgeWeights, sc.broadcast(sourcesBC.value.length), resetProb, tol)
             .mask(hubGraph)
+        case "approximate" =>
+          // 3. approximate approach
+          PersonalizedPageRank
+          .approximatePersonalizedPageRank(sc, reservePersonalizedPageRankGraph, initialEdgeWeights,
+            edgeWeights, sc.broadcast(sourcesBC.value.length), resetProb, tol)
+          .mask(hubGraph)
       }
+      val timePPREnd = System.currentTimeMillis
+      println(s"[result-$approach-ppr running time]: " + (timePPREnd - timePPRBegin))
+      logInfo(s"[result-$approach-ppr running time]: " + (timePPREnd - timePPRBegin))
 
       // clustering
       // *********************************************************************************
+      val timeClusteringBegin = System.currentTimeMillis
+//      val prevPersonalizedPageRankGraph = personalizedPageRankGraph
       val clusteringGraph: Graph[Long, Double] =
       Clustering.clusterGraph(sc, personalizedPageRankGraph, epsilon, minPts)
-
+//      personalizedPageRankGraph.edges.foreachPartition(x => {})  // also materializes personalizedPageRankGraph.vertices
+//      prevPersonalizedPageRankGraph.vertices.unpersist(false)
+//      prevPersonalizedPageRankGraph.edges.unpersist(false)
 //      clusteringGraph.vertices.filter(attr => attr._2 != -1L).collect.foreach(println(_))
+      val timeClusteringEnd = System.currentTimeMillis
+      println(s"[result-$approach-clustering running time]: " + (timeClusteringEnd - timeClusteringBegin))
+      logInfo(s"[result-$approach-clustering running time]: " + (timeClusteringEnd - timeClusteringBegin))
+
+      // result
+      finalClusteringGraph = clusteringGraph
 
       // edge weight update
       // *********************************************************************************
+      val timeUpdateBegin = System.currentTimeMillis
+//      val prevClusteringGraph = clusteringGraph
       val edgeWeightUpdateGraph: Graph[(Long, Long), Long] = originalGraph.mapVertices(
         (vid, attr) => (attr._2, -1L)
       )
       .joinVertices(clusteringGraph.vertices){
         (vid, leftAttr, rightAttr) => (leftAttr._1, rightAttr)
       }
-
-//      println("**************************************************************************")
+//      clusteringGraph.edges.foreachPartition(x => {})  // also materializes clusteringGraph.vertices
+//      prevClusteringGraph.vertices.unpersist(false)
+//      prevClusteringGraph.edges.unpersist(false)
 //      edgeWeightUpdateGraph.vertices.filter(attr => attr._2._2 > -1) .collect.foreach(println(_))
 
+//      val prevEdgeWeightUpdateGraph = edgeWeightUpdateGraph
       val oldEdgeWeights = edgeWeights
       edgeWeights = EdgeWeightUpdate.updateEdgeWeight(edgeWeightUpdateGraph, edgeWeights)
+//      edgeWeightUpdateGraph.edges.foreachPartition(x => {})
+//      prevEdgeWeightUpdateGraph.vertices.unpersist(false)
+//      prevEdgeWeightUpdateGraph.edges.unpersist(false)
+      val timeUpdateEnd = System.currentTimeMillis
+      println(s"[result-$approach-weight update running time]: " + (timeUpdateEnd - timeUpdateBegin))
+      logInfo(s"[result-$approach-weight update running time]: " + (timeUpdateEnd - timeUpdateBegin))
 
       // mse
       mse = 0.0
@@ -100,17 +143,29 @@ object GraphClustering extends Logging{
       mse = math.sqrt(mse) / edgeWeights.length
 
       print(s"[result-$approach-$numIterator-edgeWeights]: ")
-      for(x <- edgeWeights){ print(s"$x\t") }
+      logInfo(s"[result-$approach-$numIterator-edgeWeights]: ")
+      for(x <- edgeWeights){
+        print(s"$x\t")
+        logInfo(s"$x\t")
+      }
       println()
+      logInfo("\n")
       println(s"[result-$approach-$numIterator-mse]: $mse")
+      logInfo(s"[result-$approach-$numIterator-mse]: $mse")
       println("**************************************************************************")
+      logInfo("**************************************************************************")
     }
     val timeEnd = System.currentTimeMillis
     println(s"[result-$approach-running time]: " + (timeEnd - timeBegin))
+    logInfo(s"[result-$approach-running time]: " + (timeEnd - timeBegin))
 
     // clustering metric & result survey
     // *********************************************************************************
+//    finalClusteringGraph.vertices.filter(attr => attr._2 != -1L).collect.foreach(println(_))
+
+
     println("**************************************************************************")
+    logInfo("**************************************************************************")
     sc.stop()
   }
 }

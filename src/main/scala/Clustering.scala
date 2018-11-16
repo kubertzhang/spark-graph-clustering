@@ -1,10 +1,12 @@
 import org.apache.spark.graphx._
 import org.apache.spark.rdd.RDD
+
 import scala.collection.mutable.ArrayBuffer
 import breeze.linalg.{SparseVector => SV}
 import org.apache.spark.SparkContext
+import org.apache.spark.internal.Logging
 
-object Clustering {
+object Clustering extends Logging {
   def clusterGraph(
     sc: SparkContext,
     personalizedPageRankGraph: Graph[SV[Double], Double],
@@ -60,6 +62,7 @@ object Clustering {
     }
 
     // Execute a dynamic version of Pregel
+    val timePregelBegin = System.currentTimeMillis
     val clusteringGraph = Pregel(
       graph = labeledEpsilonNeighborGraph,
       initialMsg = -1L,
@@ -70,6 +73,9 @@ object Clustering {
     )
       .mapVertices((_, attr) => attr._2)
 //    clusteringGraph.vertices.collect.sorted.foreach(println(_))
+    val timePregelEnd = System.currentTimeMillis
+    println(s"cluster pregel: " + (timePregelEnd - timePregelBegin))
+    logInfo(s"cluster pregel: " + (timePregelEnd - timePregelBegin))
 
     clusteringGraph
   }

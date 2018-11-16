@@ -18,6 +18,7 @@ object GraphLoader {
         (cols(0).toLong, (cols(1), cols(2).toLong))
       }
     )
+    vertexData.unpersist()
 
     // load edges
     val edgeData: RDD[String] = sc.textFile(edgesDataPath)
