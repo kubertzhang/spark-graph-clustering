@@ -3,7 +3,6 @@ import breeze.linalg._
 import org.apache.spark.SparkContext
 import org.apache.spark.graphx._
 import org.apache.spark.broadcast.Broadcast
-import scala.collection.mutable.{WrappedArray => MWA}
 
 object PersonalizedPageRank {
   def runParallelPersonalizedPageRank(

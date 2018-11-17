@@ -26,9 +26,12 @@ object GraphClustering extends Logging{
     val minPts = parameters.minPts
     val threshold = parameters.threshold
 //    val approach = parameters.approach
-//    val approach = "basic"
+    val approach = "basic"
 //    val approach = "incremental"
-    val approach = "approximate"
+//    val approach = "approximate"
+
+    val optimizedClustering = true
+//    val optimizedClustering = false
 
     val initialEdgeWeights = parameters.initialEdgeWeights
     var edgeWeights = initialEdgeWeights
@@ -98,7 +101,7 @@ object GraphClustering extends Logging{
       val timeClusteringBegin = System.currentTimeMillis
 //      val prevPersonalizedPageRankGraph = personalizedPageRankGraph
       val clusteringGraph: Graph[Long, Double] =
-      Clustering.clusterGraph(sc, personalizedPageRankGraph, epsilon, minPts)
+      Clustering.clusterGraph(sc, personalizedPageRankGraph, epsilon, minPts, optimizedClustering)
 //      personalizedPageRankGraph.edges.foreachPartition(x => {})  // also materializes personalizedPageRankGraph.vertices
 //      prevPersonalizedPageRankGraph.vertices.unpersist(false)
 //      prevPersonalizedPageRankGraph.edges.unpersist(false)
