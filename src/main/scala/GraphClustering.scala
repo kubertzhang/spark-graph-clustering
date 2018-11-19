@@ -15,7 +15,8 @@ object GraphClustering extends Logging{
     // para
     // *********************************************************************************
     val configFile = "config/run-parameters.txt"
-    val parameters = new Parameters(args, configFile)
+    val argsTest = Array("resetProb=0.2")
+    val parameters = new Parameters(argsTest, configFile)
 
     val verticesDataPath = parameters.verticesDataPath
     val edgesDataPath = parameters.edgesDataPath

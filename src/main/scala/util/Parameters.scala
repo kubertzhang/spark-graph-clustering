@@ -29,9 +29,9 @@ class Parameters(args: Array[String], configFile: String)  extends Serializable 
   val approach: String = propertyLoader.get("approach", "basic")
 
   def printParameters(): Unit ={
-    println(s"resetProb = $resetProb, tol = $tol = tol, threshold = $threshold, dataSet = $dataSet," +
-      s"dataSize = $dataSize, verticesDataPath = $verticesDataPath, edgesDataPath = $edgesDataPath," +
-      s"epsilon = $epsilon, minPts = $minPts, initialEdgeWeights = $initialEdgeWeights," +
-      s"samplingThreshold = $samplingThreshold, samplingRate = $samplingRate, approach = $approach")
+    println(s"Parameters: {resetProb=$resetProb, tol=$tol, threshold=$threshold, dataSet=$dataSet, " +
+      s"dataSize=$dataSize, verticesDataPath=$verticesDataPath, edgesDataPath=$edgesDataPath, " +
+      s"epsilon=$epsilon, minPts=$minPts, initialEdgeWeights=${initialEdgeWeights.mkString("[", ", ", "]")}, " +
+      s"samplingThreshold=$samplingThreshold, samplingRate=$samplingRate, approach=$approach}")
   }
 }

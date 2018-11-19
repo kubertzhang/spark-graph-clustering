@@ -14,13 +14,17 @@ class ConfigLoader(args: Array[String], configFile: String) extends Serializable
   }
 
   def update(): ConfigLoader ={
-    val userDefinedProperties = args(0)
-    userDefinedProperties.stripMargin.split(",").foreach(
-      str => {
-        val (name, value) = str.stripMargin.split("=")
-        property.setProperty(name, value)
+    if(args.length != 0){
+      val userDefinedProperties: String = args(0)
+      if(!userDefinedProperties.isEmpty){
+        userDefinedProperties.stripMargin.split(",").foreach(
+          str => {
+            val name_value = str.stripMargin.split("=")
+            property.setProperty(name_value(0), name_value(1))
+          }
+        )
       }
-    )
+    }
     this
   }
 
@@ -41,6 +45,6 @@ class ConfigLoader(args: Array[String], configFile: String) extends Serializable
   }
 
   def getDoubleArray(data: String, default: Array[Double]): Array[Double] = {
-    get(data, default.toString).split(",").map(v => v.toDouble)
+    get(data, default.toString).split("-").map(v => v.toDouble)
   }
 }
