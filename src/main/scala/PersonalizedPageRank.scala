@@ -3,6 +3,7 @@ import breeze.linalg._
 import org.apache.spark.SparkContext
 import org.apache.spark.graphx._
 import org.apache.spark.broadcast.Broadcast
+import scala.util.Random
 
 object PersonalizedPageRank {
   def runParallelPersonalizedPageRank(
@@ -11,7 +12,10 @@ object PersonalizedPageRank {
     sourcesNumBC: Broadcast[Int],
     pushBackType: String,
     resetProb: Double = 0.2,
-    tol: Double = 0.001): Graph[(SV[Double], SV[Double], SV[Double], Long), Double] = {
+    tol: Double = 0.001,
+    samplingSwitch: Boolean = false,
+    samplingThreshold: Double = 0.001,
+    samplingRate: Double = 0.2): Graph[(SV[Double], SV[Double], SV[Double], Long), Double] = {
 
     require(resetProb >= 0 && resetProb <= 1, s"Random reset probability must belong" +
       s" to [0, 1], but got $resetProb")
@@ -83,8 +87,8 @@ object PersonalizedPageRank {
       }
     }
 
-    // sendMsg func
-    def sendMessage(edge: EdgeTriplet[(SV[Double], SV[Double], SV[Double], Long), Double]):
+    // normal send operation
+    def normalSendMessage(edge: EdgeTriplet[(SV[Double], SV[Double], SV[Double], Long), Double]):
     Iterator[(VertexId, SV[Double])] = {
       val maskResidualVec = edge.dstAttr._3
 
@@ -93,6 +97,39 @@ object PersonalizedPageRank {
         Iterator((edge.srcId, msgSumOpt))
       } else {
         Iterator.empty
+      }
+    }
+
+    // sampling send operation
+    def samplingSendMessage(edge: EdgeTriplet[(SV[Double], SV[Double], SV[Double], Long), Double]):
+    Iterator[(VertexId, SV[Double])] = {
+      val maskResidualVec = edge.dstAttr._3
+
+      if(maskResidualVec.activeSize != 0){  // 存在需要push back的顶点,继续发送消息
+        // sampling
+        if(edge.attr < samplingThreshold){  // 入边转移概率小于采样阈值,进行采样
+          val randomValue = new Random().nextInt(10).toDouble
+          if(randomValue < samplingRate * 10){  // 采样保留
+            val msgSumOpt = maskResidualVec *:* edge.attr *:* (1.0 - resetProb)
+            Iterator((edge.srcId, msgSumOpt))
+          }else{ Iterator.empty }  // 采样筛除
+        }else{  // 入边转移概率大于采样阈值,不进行采样
+          val msgSumOpt = maskResidualVec *:* edge.attr *:* (1.0 - resetProb)
+          Iterator((edge.srcId, msgSumOpt))
+        }
+      }else{
+        Iterator.empty
+      }
+    }
+
+    // sendMsg func
+    def sendMessage(edge: EdgeTriplet[(SV[Double], SV[Double], SV[Double], Long), Double]):
+    Iterator[(VertexId, SV[Double])] = {
+      if(samplingSwitch){
+        samplingSendMessage(edge)
+      }
+      else{
+        normalSendMessage(edge)
       }
     }
 
@@ -174,7 +211,7 @@ object PersonalizedPageRank {
       .mapVertices((_, attr) => attr._1)  // (vid, (estimateVec))
   }
 
-  def reservePersonalizedPageRank(
+  def dynamicPersonalizedPageRank(
     sc: SparkContext,
     originalGraph: Graph[(String, Long), Long],
     sourcesBC: Broadcast[Array[VertexId]],
@@ -261,9 +298,9 @@ object PersonalizedPageRank {
     reservePersonalizedPageRankGraph
   }
 
-  def approximatePersonalizedPageRank(
+  def reservePersonalizedPageRank(
     sc: SparkContext,
-    reservePersonalizedPageRankGraph: Graph[(SV[Double], SV[Double], Array[SV[Double]], Long), Double],
+    dynamicPersonalizedPageRankGraph: Graph[(SV[Double], SV[Double], Array[SV[Double]], Long), Double],
     oldEdgeWeights: Array[Double],
     newEdgeWeights: Array[Double],
     sourcesNumBC: Broadcast[Int],
@@ -277,7 +314,7 @@ object PersonalizedPageRank {
     val attributeNum = newEdgeWeights.length - 1
     val attributeNumBC = sc.broadcast(attributeNum)
 
-    val updatedAttributeGraph = reservePersonalizedPageRankGraph.mapVertices(
+    val updatedAttributeGraph = dynamicPersonalizedPageRankGraph.mapVertices(
       (_, attr) => {
         val (estimateVec, residualVec, reserveVecArray, vertexType) = attr
         if(vertexType == 0L){
@@ -295,6 +332,24 @@ object PersonalizedPageRank {
     )
 
     runParallelPersonalizedPageRank(sc, updatedAttributeGraph, sourcesNumBC, "global", resetProb, tol)
+      .mapVertices((_, attr) => attr._1)  // (vid, (estimateVec))
+  }
+
+  def samplingPersonalizedPageRank(
+    sc: SparkContext,
+    originalGraph: Graph[(String, Long), Long],
+    sourcesBC: Broadcast[Array[VertexId]],
+    edgeWeights: Array[Double],
+    resetProb: Double = 0.2,
+    tol: Double = 0.001,
+    samplingSwitch: Boolean = true,  // 默认开启
+    samplingThreshold: Double = 0.001,
+    samplingRate: Double = 0.2): Graph[SV[Double], Double] = {
+
+    val attributeGraph = GraphLoader.attributeGraph(sc, originalGraph, edgeWeights, sourcesBC)
+    val sourcesNumBC = sc.broadcast(sourcesBC.value.length)
+    runParallelPersonalizedPageRank(sc, attributeGraph, sourcesNumBC, "global", resetProb, tol,
+      samplingSwitch, samplingThreshold, samplingRate)
       .mapVertices((_, attr) => attr._1)  // (vid, (estimateVec))
   }
 

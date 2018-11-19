@@ -5,6 +5,8 @@ import org.apache.spark.graphx._
 import org.apache.spark.internal.Logging
 import breeze.linalg.{SparseVector => SV}
 
+import scala.util.Random
+
 object GraphClustering extends Logging{
   def main(args: Array[String]): Unit = {
     val conf = new SparkConf().setAppName("Graph Clustering").setMaster("local[*]")  // master: local
@@ -28,10 +30,11 @@ object GraphClustering extends Logging{
 //    val approach = parameters.approach
     val approach = "basic"
 //    val approach = "incremental"
-//    val approach = "approximate"
+//    val approach = "reserve"
+//    val approach = "sampling"
 
-    val optimizedClustering = true
-//    val optimizedClustering = false
+    val samplingThreshold = 0.001
+    val samplingRate = 0.2
 
     val initialEdgeWeights = parameters.initialEdgeWeights
     var edgeWeights = initialEdgeWeights
@@ -45,27 +48,23 @@ object GraphClustering extends Logging{
     // *********************************************************************************
     val originalGraph: Graph[(String, Long), Long] = GraphLoader
       .originalGraph(sc, verticesDataPath, edgesDataPath)
-      .partitionBy(PartitionStrategy.EdgePartition2D)  // partition
+//      .partitionBy(PartitionStrategy.EdgePartition2D)  // partition
       .cache()
     val hubGraph: Graph[(String, Long), Long] = GraphLoader.hubGraph(originalGraph).cache()
     val sources = hubGraph.vertices.keys.collect().sorted  // 提取主类顶点,按编号升序排列,保证id和vertexId一致
-//    val sources = hubGraph.vertices.keys.take(100000)
+//    val sources = hubGraph.vertices.keys.take(10000)
     val sourcesBC = sc.broadcast(sources)
 
     // incremental
-    val hubPersonalizedPageRankGraph = PersonalizedPageRank
-      .hubPersonalizedPageRank(sc, originalGraph, sourcesBC, edgeWeights, resetProb, tol)
-      .cache()
-
-    // approximate
-    val reservePersonalizedPageRankGraph = PersonalizedPageRank
-      .reservePersonalizedPageRank(sc, originalGraph, sourcesBC, edgeWeights, resetProb, tol)
-      .cache()
+    var hubPersonalizedPageRankGraph: Graph[(SV[Double], SV[Double], Long), Double] = null
+    // reserve
+    var dynamicPersonalizedPageRankGraph: Graph[(SV[Double], SV[Double], Array[SV[Double]], Long), Double] = null
 
     var finalClusteringGraph: Graph[Long, Double] = null
 
     var mse = Double.MaxValue
     var numIterator = 0
+    var optimizedLabel: Boolean = true
     val timeBegin = System.currentTimeMillis
     while(mse > threshold){
       numIterator += 1
@@ -75,22 +74,46 @@ object GraphClustering extends Logging{
       val personalizedPageRankGraph: Graph[SV[Double], Double] = approach match {
         case "basic" =>
           // 1. basic approach
+          optimizedLabel = false
           PersonalizedPageRank
             .basicPersonalizedPageRank(sc, originalGraph, sourcesBC, edgeWeights, resetProb, tol)
             .mask(hubGraph)
           //    personalizedPageRankGraph.vertices.keys.collect().sorted.foreach(println(_))
         case "incremental" =>
           // 2. incremental approach
+          optimizedLabel = true
+
+          if(numIterator == 1){
+            hubPersonalizedPageRankGraph = PersonalizedPageRank
+              .hubPersonalizedPageRank(sc, originalGraph, sourcesBC, edgeWeights, resetProb, tol)
+              .cache()
+          }
+
           PersonalizedPageRank
             .incrementalPersonalizedPageRank(sc, hubPersonalizedPageRankGraph, initialEdgeWeights,
               edgeWeights, sc.broadcast(sourcesBC.value.length), resetProb, tol)
             .mask(hubGraph)
-        case "approximate" =>
-          // 3. approximate approach
+        case "reserve" =>
+          // 3. reserve approach
+          optimizedLabel = true
+
+          if(numIterator == 1){
+            dynamicPersonalizedPageRankGraph = PersonalizedPageRank
+              .dynamicPersonalizedPageRank(sc, originalGraph, sourcesBC, edgeWeights, resetProb, tol)
+              .cache()
+          }
           PersonalizedPageRank
-          .approximatePersonalizedPageRank(sc, reservePersonalizedPageRankGraph, initialEdgeWeights,
+          .reservePersonalizedPageRank(sc, dynamicPersonalizedPageRankGraph, initialEdgeWeights,
             edgeWeights, sc.broadcast(sourcesBC.value.length), resetProb, tol)
-          .mask(hubGraph)
+            .mask(hubGraph)
+        case "sampling" =>
+          // 4. sampling approach
+          optimizedLabel = true
+          val samplingSwitch = true
+          PersonalizedPageRank
+            .samplingPersonalizedPageRank(sc, originalGraph, sourcesBC, edgeWeights, resetProb, tol,
+              samplingSwitch, samplingThreshold, samplingRate)
+            .mask(hubGraph)
       }
       val timePPREnd = System.currentTimeMillis
       println(s"[result-$approach-ppr running time]: " + (timePPREnd - timePPRBegin))
@@ -101,7 +124,7 @@ object GraphClustering extends Logging{
       val timeClusteringBegin = System.currentTimeMillis
 //      val prevPersonalizedPageRankGraph = personalizedPageRankGraph
       val clusteringGraph: Graph[Long, Double] =
-      Clustering.clusterGraph(sc, personalizedPageRankGraph, epsilon, minPts, optimizedClustering)
+      Clustering.clusterGraph(sc, personalizedPageRankGraph, epsilon, minPts, optimizedLabel)
 //      personalizedPageRankGraph.edges.foreachPartition(x => {})  // also materializes personalizedPageRankGraph.vertices
 //      prevPersonalizedPageRankGraph.vertices.unpersist(false)
 //      prevPersonalizedPageRankGraph.edges.unpersist(false)
