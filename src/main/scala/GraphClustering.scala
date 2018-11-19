@@ -34,10 +34,10 @@ object GraphClustering extends Logging{
     var edgeWeights = initialEdgeWeights
 
     //    val approach = parameters.approach
-    val approach = "basic"
-    //    val approach = "incremental"
-    //    val approach = "reserve"
-    //    val approach = "sampling"
+//    val approach = "basic"
+//        val approach = "incremental"
+//        val approach = "reserve"
+        val approach = "sampling"
 
     parameters.printParameters()
     println("**************************************************************************")
