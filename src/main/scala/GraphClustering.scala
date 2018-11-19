@@ -5,8 +5,6 @@ import org.apache.spark.graphx._
 import org.apache.spark.internal.Logging
 import breeze.linalg.{SparseVector => SV}
 
-import scala.util.Random
-
 object GraphClustering extends Logging{
   def main(args: Array[String]): Unit = {
     val conf = new SparkConf().setAppName("Graph Clustering").setMaster("local[*]")  // master: local
