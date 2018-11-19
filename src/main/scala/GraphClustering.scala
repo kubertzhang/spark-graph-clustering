@@ -14,8 +14,8 @@ object GraphClustering extends Logging{
 
     // para
     // *********************************************************************************
-    val args_ : Array[String] = Array("config/run-parameters.txt")
-    val parameters = new Parameters(args_)
+    val configFile = "config/run-parameters.txt"
+    val parameters = new Parameters(args, configFile)
 
     val verticesDataPath = parameters.verticesDataPath
     val edgesDataPath = parameters.edgesDataPath
@@ -25,21 +25,20 @@ object GraphClustering extends Logging{
     val epsilon = parameters.epsilon
     val minPts = parameters.minPts
     val threshold = parameters.threshold
-//    val approach = parameters.approach
-    val approach = "basic"
-//    val approach = "incremental"
-//    val approach = "reserve"
-//    val approach = "sampling"
 
-    val samplingThreshold = 0.001
-    val samplingRate = 0.2
+    val samplingThreshold = parameters.samplingThreshold
+    val samplingRate = parameters.samplingRate
 
     val initialEdgeWeights = parameters.initialEdgeWeights
     var edgeWeights = initialEdgeWeights
 
-//    println(s"parameters: ${parameters.toString}")
-//    logInfo(s"parameters: ${parameters.toString}")
+    //    val approach = parameters.approach
+    val approach = "basic"
+    //    val approach = "incremental"
+    //    val approach = "reserve"
+    //    val approach = "sampling"
 
+    parameters.printParameters()
     println("**************************************************************************")
     logInfo("**************************************************************************")
     // load graph

@@ -4,12 +4,23 @@ import java.util.Properties
 import java.io.InputStream
 import java.io.FileInputStream
 
-class ConfigLoader(configFile: String) extends Serializable {
+class ConfigLoader(args: Array[String], configFile: String) extends Serializable {
   val property = new Properties()
   def load(): ConfigLoader = {
     var input: InputStream = null
     input = new FileInputStream(configFile)
     property.load(input)
+    this
+  }
+
+  def update(): ConfigLoader ={
+    val userDefinedProperties = args(0)
+    userDefinedProperties.stripMargin.split(",").foreach(
+      str => {
+        val (name, value) = str.stripMargin.split("=")
+        property.setProperty(name, value)
+      }
+    )
     this
   }
 
