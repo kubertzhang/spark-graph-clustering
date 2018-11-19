@@ -1,8 +1,38 @@
 import org.apache.spark.graphx._
+import breeze.linalg.{SparseVector => SV}
+
 import scala.math._
 
 object EdgeWeightUpdate {
+
   def updateEdgeWeight(
+    edgeWeightUpdateGraph: Graph[(Long, Long), Long],  // [(vertexTypeId, clusterId), edgeTypeId]
+    oldEdgeWeights: Array[Double]): Array[Double] = {
+
+    val attributeNum = oldEdgeWeights.length - 1
+
+//    val vertexNumByTypeArray = new Array[Long](attributeNum + 1)
+
+    val vertexNumByTypeArray = edgeWeightUpdateGraph.vertices.groupBy(_._2._1).map(
+      kv => (kv._1, kv._2.count(_ => true))
+    ).sortBy(_._1).map(_._2)
+
+    val countFrequencyGraph = edgeWeightUpdateGraph.mapVertices(
+      (_, attr) => {
+        val attributeArray = vertexNumByTypeArray.map(
+          num => SV.zeros[Long](num)
+        )
+        (attr._1, attr._2, attributeArray)
+      }
+    )
+
+
+
+    oldEdgeWeights
+  }
+
+
+  def updateEdgeWeightT(
     edgeWeightUpdateGraph: Graph[(Long, Long), Long],
     oldEdgeWeights: Array[Double]): Array[Double] = {
 

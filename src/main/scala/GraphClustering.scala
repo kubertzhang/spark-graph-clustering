@@ -15,8 +15,7 @@ object GraphClustering extends Logging{
     // para
     // *********************************************************************************
     val configFile = "config/run-parameters.txt"
-    val argsTest = Array("resetProb=0.2")
-    val parameters = new Parameters(argsTest, configFile)
+    val parameters = new Parameters(args, configFile)
 
     val verticesDataPath = parameters.verticesDataPath
     val edgesDataPath = parameters.edgesDataPath
@@ -33,18 +32,21 @@ object GraphClustering extends Logging{
     val initialEdgeWeights = parameters.initialEdgeWeights
     var edgeWeights = initialEdgeWeights
 
-    //    val approach = parameters.approach
-//    val approach = "basic"
-//        val approach = "incremental"
-//        val approach = "reserve"
-        val approach = "sampling"
+    val approach = parameters.approach
 
+//    val approach = "basic"
+//    val approach = "incremental"
+//    val approach = "reserve"
+//    val approach = "sampling"
+
+    println("**************************************************************************")
+    logInfo("**************************************************************************")
     parameters.printParameters()
     println("**************************************************************************")
     logInfo("**************************************************************************")
     // load graph
     // *********************************************************************************
-    val originalGraph: Graph[(String, Long), Long] = GraphLoader
+    val originalGraph: Graph[(String, Long), Long] = GraphLoader  // [(vertexCode, vertexTypeId), edgeTypeId]
       .originalGraph(sc, verticesDataPath, edgesDataPath)
 //      .partitionBy(PartitionStrategy.EdgePartition2D)  // partition
       .cache()

@@ -118,9 +118,6 @@ object Clustering extends Logging {
       )
     //    labeledEpsilonNeighborGraph.vertices.collect.sorted.foreach(println(_))
 
-
-
-
     // Execute a dynamic version of Pregel
     val timePregelBegin = System.currentTimeMillis
     val clusteringGraph = if(optimized){
