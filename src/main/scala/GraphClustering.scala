@@ -153,7 +153,7 @@ object GraphClustering extends Logging{
 
 //      val prevEdgeWeightUpdateGraph = edgeWeightUpdateGraph
       val oldEdgeWeights = edgeWeights
-      edgeWeights = EdgeWeightUpdate.updateEdgeWeight(edgeWeightUpdateGraph, edgeWeights)
+      edgeWeights = EdgeWeightUpdate.updateEdgeWeight(sc, edgeWeightUpdateGraph, edgeWeights)
 //      edgeWeightUpdateGraph.edges.foreachPartition(x => {})
 //      prevEdgeWeightUpdateGraph.vertices.unpersist(false)
 //      prevEdgeWeightUpdateGraph.edges.unpersist(false)
