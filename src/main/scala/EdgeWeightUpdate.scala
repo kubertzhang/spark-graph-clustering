@@ -93,6 +93,8 @@ object EdgeWeightUpdate {
       mergeMsg = mergeMessage
     )
 
+//    println(s"e ==== ${FrequencyGraph.vertices.filter(_._2._2 > 0L).count()}")
+
     val attributeEntropyArray = FrequencyGraph.vertices
       .filter(_._2._2 > 0L)  // 筛选出被正确聚类的主类顶点
       .map(
@@ -109,12 +111,14 @@ object EdgeWeightUpdate {
       )
       .map(  // 计算每个簇内的每个属性对应的熵
         kv => {
-          kv._2.map(
+          val t = kv._2.map(
             frequency => {
               frequency :/= sum(frequency)  // 计算每个属性对应的顶点概率
               frequency.activeValuesIterator.map(x => x * Math.log(x)).sum * (-1)  // 计算每个属性对应的熵
             }
           )
+//          t.foreach(println(_))
+          t
         }
       )
       .reduce(  // 统计所有簇的属性熵
@@ -144,6 +148,7 @@ object EdgeWeightUpdate {
     }
 
     newEdgeWeights.toArray
+//    oldEdgeWeights
   }
 
   def updateEdgeWeight2(

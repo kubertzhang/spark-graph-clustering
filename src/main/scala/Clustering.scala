@@ -84,6 +84,7 @@ object Clustering extends Logging {
 
     val minPtsBC = sc.broadcast(minPts)
 
+    // 筛选构造符合epsilon条件的主类顶点子图
     val edgeBuffer = ArrayBuffer[List[Int]]()
     personalizedPageRankGraph.vertices.collect.foreach(
       vid_scores => {
@@ -101,35 +102,33 @@ object Clustering extends Logging {
         )
       }
     )
-
     val epsilonEdges: RDD[Edge[Double]] = sc.parallelize(edgeBuffer.distinct).map(
       edge => {
         Edge(edge.head, edge(1), 1.0)
       }
     )
-    //    epsilonEdges.collect.foreach(println(_))
-
     val epsilonNeighborGraph = Graph.fromEdges[(Long, Long), Double](epsilonEdges, (-1L, -1L))
+
+    // 标记核心点
     val labeledEpsilonNeighborGraph = epsilonNeighborGraph.outerJoinVertices(epsilonNeighborGraph.outDegrees){
       (vid, attr, deg) => (attr._1, deg.getOrElse(0))
     }
       .mapVertices(
         (vid, attr) => if(attr._2 >= minPtsBC.value) (1L, vid) else (0L, -1L)  // (vid, (isCorePoint, clusterId))
       )
-    //    labeledEpsilonNeighborGraph.vertices.collect.sorted.foreach(println(_))
 
+    // 聚类
+    // 核心点和边界点的clusterId > 0L, 离散点的clusterId = -1L
     // Execute a dynamic version of Pregel
-    val timePregelBegin = System.currentTimeMillis
     val clusteringGraph = if(optimized){
       basicClustering(labeledEpsilonNeighborGraph)
     }
     else{
       optimizedClustering(labeledEpsilonNeighborGraph)
     }
-//    clusteringGraph.vertices.collect.sorted.foreach(println(_))
-    val timePregelEnd = System.currentTimeMillis
-    println(s"cluster pregel: " + (timePregelEnd - timePregelBegin))
-    logInfo(s"cluster pregel: " + (timePregelEnd - timePregelBegin))
+
+    require(clusteringGraph.vertices.filter(_._2 > 0L).count() > 0, s"The proper clustered vertices' size" +
+      s" must larger than 0, but got 0!")
 
     clusteringGraph
   }

@@ -147,6 +147,7 @@ object GraphClustering extends Logging{
       .joinVertices(clusteringGraph.vertices){
         (vid, leftAttr, rightAttr) => (leftAttr._1, rightAttr)
       }
+
 //      clusteringGraph.edges.foreachPartition(x => {})  // also materializes clusteringGraph.vertices
 //      prevClusteringGraph.vertices.unpersist(false)
 //      prevClusteringGraph.edges.unpersist(false)
@@ -154,7 +155,7 @@ object GraphClustering extends Logging{
 
 //      val prevEdgeWeightUpdateGraph = edgeWeightUpdateGraph
       val oldEdgeWeights = edgeWeights
-      edgeWeights = EdgeWeightUpdate.updateEdgeWeight2(sc, edgeWeightUpdateGraph, edgeWeights)
+      edgeWeights = EdgeWeightUpdate.updateEdgeWeight(sc, edgeWeightUpdateGraph, edgeWeights)
 //      edgeWeightUpdateGraph.edges.foreachPartition(x => {})
 //      prevEdgeWeightUpdateGraph.vertices.unpersist(false)
 //      prevEdgeWeightUpdateGraph.edges.unpersist(false)

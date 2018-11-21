@@ -5,8 +5,8 @@ resetProb: 0.2
 tol: 0.001
 threshold: 0.001
 
-epsilon: 0.003
-minPts: 3
+epsilon: 0.005
+minPts: 5
 
 approach: basic
 
