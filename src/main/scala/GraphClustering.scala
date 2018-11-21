@@ -4,6 +4,7 @@ import org.apache.spark.SparkContext
 import org.apache.spark.graphx._
 import org.apache.spark.internal.Logging
 import breeze.linalg.{SparseVector => SV}
+import breeze.linalg._
 
 object GraphClustering extends Logging{
   def main(args: Array[String]): Unit = {
@@ -153,7 +154,7 @@ object GraphClustering extends Logging{
 
 //      val prevEdgeWeightUpdateGraph = edgeWeightUpdateGraph
       val oldEdgeWeights = edgeWeights
-      edgeWeights = EdgeWeightUpdate.updateEdgeWeight(sc, edgeWeightUpdateGraph, edgeWeights)
+      edgeWeights = EdgeWeightUpdate.updateEdgeWeight2(sc, edgeWeightUpdateGraph, edgeWeights)
 //      edgeWeightUpdateGraph.edges.foreachPartition(x => {})
 //      prevEdgeWeightUpdateGraph.vertices.unpersist(false)
 //      prevEdgeWeightUpdateGraph.edges.unpersist(false)
