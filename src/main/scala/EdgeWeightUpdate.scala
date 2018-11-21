@@ -83,7 +83,7 @@ object EdgeWeightUpdate {
     }
 
     // Execute a dynamic version of Pregel
-    val FrequencyGraph = Pregel(
+    val frequencyGraph = Pregel(
       graph = initialFrequencyGraph,
       initialMsg = initialMessage,
       maxIterations = 1,  // 只处理邻居顶点
@@ -92,10 +92,11 @@ object EdgeWeightUpdate {
       sendMsg = sendMessage,
       mergeMsg = mergeMessage
     )
+    initialFrequencyGraph.unpersist()
 
-//    println(s"e ==== ${FrequencyGraph.vertices.filter(_._2._2 > 0L).count()}")
+//    println(s"e ==== ${frequencyGraph.vertices.filter(_._2._2 > 0L).count()}")
 
-    val attributeEntropyArray = FrequencyGraph.vertices
+    val attributeEntropyArray = frequencyGraph.vertices
       .filter(_._2._2 > 0L)  // 筛选出被正确聚类的主类顶点
       .map(
         kv => (kv._2._2, kv._2._3)  // (clusterId, frequencyArray)
@@ -124,6 +125,7 @@ object EdgeWeightUpdate {
       .reduce(  // 统计所有簇的属性熵
         (x, y) => x +:+ y
       )
+    frequencyGraph.unpersist()
 
     val attributeInfluenceArray = attributeEntropyArray.map(
       x => {

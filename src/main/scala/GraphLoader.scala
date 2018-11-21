@@ -88,6 +88,7 @@ object GraphLoader {
       (vid, leftAttr, rightAttr) => (leftAttr._1, leftAttr._2, leftAttr._3, rightAttr.get._2)
     }
     //    attributeGraph.vertices.collect.foreach(println(_))
+    sourcesInitMapBC.unpersist()
 
     attributeGraph
   }

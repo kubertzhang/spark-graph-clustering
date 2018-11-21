@@ -9,13 +9,13 @@ class Parameters(args: Array[String], configFile: String)  extends Serializable 
   val tol: Double = propertyLoader.getDouble("tol", 0.001)
   val threshold: Double = propertyLoader.getDouble("threshold", 0.001)
 
-  val dataSet: String = propertyLoader.get("dataSet", "dblp")
+  val dataSet: String = propertyLoader.get("dataSet", "[warning] you need to set dataSet")
   val dataSize: Int = propertyLoader.getInt("dataSize", -1)
 
   val verticesDataPath: String =
-    propertyLoader.get("verticesDataPath", "resources/dblp/test/dblp-vertices.txt")
+    propertyLoader.get("verticesDataPath", "[warning] you need to set verticesDataPath")
   val edgesDataPath: String =
-    propertyLoader.get("edgesDataPath", "resources/dblp/test/dblp-edges.txt")
+    propertyLoader.get("edgesDataPath", "[warning] you need to set edgesDataPath")
 
   val epsilon: Double = propertyLoader.getDouble("epsilon", 0.005)
   val minPts: Int = propertyLoader.getInt("minPts", 3)

@@ -145,7 +145,6 @@ object PersonalizedPageRank {
         sendMsg = sendMessage,
         mergeMsg = mergeMessage
       )
-//    personalizedPageRankGraph.vertices.collect.foreach(println(_))
 
     personalizedPageRankGraph  // (vid, (estimateVec , residualVec, maskResidualVec, vertexType))
   }
@@ -160,8 +159,12 @@ object PersonalizedPageRank {
 
     val attributeGraph = GraphLoader.attributeGraph(sc, originalGraph, edgeWeights, sourcesBC)
     val sourcesNumBC = sc.broadcast(sourcesBC.value.length)
-    runParallelPersonalizedPageRank(sc, attributeGraph, sourcesNumBC, "global", resetProb, tol)
+    val basicPersonalizedPageRankGraph = runParallelPersonalizedPageRank(sc, attributeGraph, sourcesNumBC,
+      "global", resetProb, tol)
       .mapVertices((_, attr) => attr._1)  // (vid, (estimateVec))
+    attributeGraph.unpersist()
+
+    basicPersonalizedPageRankGraph
   }
 
   def hubPersonalizedPageRank(

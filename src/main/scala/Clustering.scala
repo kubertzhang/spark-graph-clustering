@@ -108,6 +108,7 @@ object Clustering extends Logging {
       }
     )
     val epsilonNeighborGraph = Graph.fromEdges[(Long, Long), Double](epsilonEdges, (-1L, -1L))
+    epsilonEdges.unpersist()
 
     // 标记核心点
     val labeledEpsilonNeighborGraph = epsilonNeighborGraph.outerJoinVertices(epsilonNeighborGraph.outDegrees){
@@ -126,6 +127,9 @@ object Clustering extends Logging {
     else{
       optimizedClustering(labeledEpsilonNeighborGraph)
     }
+
+    epsilonNeighborGraph.unpersist()
+    labeledEpsilonNeighborGraph.unpersist()
 
     require(clusteringGraph.vertices.filter(_._2 > 0L).count() > 0, s"The proper clustered vertices' size" +
       s" must larger than 0, but got 0!")

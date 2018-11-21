@@ -8,8 +8,8 @@ import breeze.linalg._
 
 object GraphClustering extends Logging{
   def main(args: Array[String]): Unit = {
-    val conf = new SparkConf().setAppName("Graph Clustering").setMaster("local[*]")  // master: local
-//    val conf = new SparkConf().setAppName("Graph Clustering")                        // master: cluster
+//    val conf = new SparkConf().setAppName("Graph Clustering").setMaster("local[*]")  // master: local
+    val conf = new SparkConf().setAppName("Graph Clustering")                        // master: cluster
     val sc = new SparkContext(conf)
     sc.setLogLevel("ERROR")
 
@@ -123,14 +123,10 @@ object GraphClustering extends Logging{
       // clustering
       // *********************************************************************************
       val timeClusteringBegin = System.currentTimeMillis
-//      val prevPersonalizedPageRankGraph = personalizedPageRankGraph
       val clusteringGraph: Graph[Long, Double] =
       Clustering.clusterGraph(sc, personalizedPageRankGraph, epsilon, minPts, optimizedLabel)
-//      personalizedPageRankGraph.edges.foreachPartition(x => {})  // also materializes personalizedPageRankGraph.vertices
-//      prevPersonalizedPageRankGraph.vertices.unpersist(false)
-//      prevPersonalizedPageRankGraph.edges.unpersist(false)
-//      clusteringGraph.vertices.filter(attr => attr._2 != -1L).collect.foreach(println(_))
       val timeClusteringEnd = System.currentTimeMillis
+      personalizedPageRankGraph.unpersist()
       println(s"[result-$approach-clustering running time]: " + (timeClusteringEnd - timeClusteringBegin))
       logInfo(s"[result-$approach-clustering running time]: " + (timeClusteringEnd - timeClusteringBegin))
 
@@ -140,26 +136,18 @@ object GraphClustering extends Logging{
       // edge weight update
       // *********************************************************************************
       val timeUpdateBegin = System.currentTimeMillis
-//      val prevClusteringGraph = clusteringGraph
       val edgeWeightUpdateGraph: Graph[(Long, Long), Long] = originalGraph.mapVertices(
         (vid, attr) => (attr._2, -1L)
       )
       .joinVertices(clusteringGraph.vertices){
         (vid, leftAttr, rightAttr) => (leftAttr._1, rightAttr)
       }
+      clusteringGraph.unpersist()
 
-//      clusteringGraph.edges.foreachPartition(x => {})  // also materializes clusteringGraph.vertices
-//      prevClusteringGraph.vertices.unpersist(false)
-//      prevClusteringGraph.edges.unpersist(false)
-//      edgeWeightUpdateGraph.vertices.filter(attr => attr._2._2 > -1) .collect.foreach(println(_))
-
-//      val prevEdgeWeightUpdateGraph = edgeWeightUpdateGraph
       val oldEdgeWeights = edgeWeights
       edgeWeights = EdgeWeightUpdate.updateEdgeWeight(sc, edgeWeightUpdateGraph, edgeWeights)
-//      edgeWeightUpdateGraph.edges.foreachPartition(x => {})
-//      prevEdgeWeightUpdateGraph.vertices.unpersist(false)
-//      prevEdgeWeightUpdateGraph.edges.unpersist(false)
       val timeUpdateEnd = System.currentTimeMillis
+      edgeWeightUpdateGraph.unpersist()
       println(s"[result-$approach-weight update running time]: " + (timeUpdateEnd - timeUpdateBegin))
       logInfo(s"[result-$approach-weight update running time]: " + (timeUpdateEnd - timeUpdateBegin))
 
