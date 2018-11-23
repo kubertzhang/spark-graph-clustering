@@ -63,6 +63,9 @@ object EdgeWeightUpdate {
         val attributeMsg = vertexNumByTypeArrayBC.value.map(
           kv => SV.zeros[Double](kv._2.toInt)
         ).drop(1)
+
+//        println(s"vid = ${edge.srcId}, attributeIndex = $attributeIndex, pos = $pos")
+
         attributeMsg(attributeIndex).update(pos, 1.0)  // 属性顶点计数
 
         Iterator((edge.dstId, attributeMsg))

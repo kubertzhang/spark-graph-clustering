@@ -2,20 +2,20 @@ package util
 
 //import ConfigLoader
 
-class Parameters(args: Array[String], configFile: String)  extends Serializable {
-  val propertyLoader: ConfigLoader = new ConfigLoader(args, configFile).load().update()
+class Parameters(configFile: String, configParameters: String)  extends Serializable {
+  val propertyLoader: ConfigLoader = new ConfigLoader(configFile, configParameters).load().update()
 
   val resetProb: Double = propertyLoader.getDouble("resetProb", 0.2)
   val tol: Double = propertyLoader.getDouble("tol", 0.001)
   val threshold: Double = propertyLoader.getDouble("threshold", 0.001)
 
-  val dataSet: String = propertyLoader.get("dataSet", "[warning] you need to set dataSet")
-  val dataSize: Int = propertyLoader.getInt("dataSize", -1)
+  val dataSet: String = propertyLoader.get("dataSet", "[warning: you need to set dataSet]")
+  val dataSize: String = propertyLoader.get("dataSize", "[warning: you need to set dataSize]")
 
   val verticesDataPath: String =
-    propertyLoader.get("verticesDataPath", "[warning] you need to set verticesDataPath")
+    propertyLoader.get("verticesDataPath", "[warning: you need to set verticesDataPath]")
   val edgesDataPath: String =
-    propertyLoader.get("edgesDataPath", "[warning] you need to set edgesDataPath")
+    propertyLoader.get("edgesDataPath", "[warning: you need to set edgesDataPath]")
 
   val epsilon: Double = propertyLoader.getDouble("epsilon", 0.005)
   val minPts: Int = propertyLoader.getInt("minPts", 3)

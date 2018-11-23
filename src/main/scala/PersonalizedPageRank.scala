@@ -4,6 +4,7 @@ import org.apache.spark.SparkContext
 import org.apache.spark.graphx._
 import org.apache.spark.broadcast.Broadcast
 import scala.util.Random
+import scala.collection.mutable.ArrayBuffer
 
 object PersonalizedPageRank {
   def runParallelPersonalizedPageRank(
@@ -37,7 +38,7 @@ object PersonalizedPageRank {
 
       val maskResVecBuilder = new VectorBuilder[Double](length = -1)
       // 只push back主类顶点: vertexType == 0
-      curResidualVec.activeIterator.filter(kv => (vertexType == 0) && (kv._2 >= tol))
+      curResidualVec.activeIterator.filter(kv => (vertexType == 0L) && (kv._2 >= tol))
         .foreach(kv => maskResVecBuilder.add(kv._1, kv._2))
       maskResVecBuilder.length = sourcesNumBC.value
       val maskResidualVec = maskResVecBuilder.toSparseVector
@@ -46,7 +47,7 @@ object PersonalizedPageRank {
 
       val newResVecBuilder = new VectorBuilder[Double](length = -1)
       // 只push back主类顶点, 属性类顶点的residual value保留
-      curResidualVec.activeIterator.filter(kv => (vertexType != 0) || (kv._2 < tol))
+      curResidualVec.activeIterator.filter(kv => (vertexType != 0L) || (kv._2 < tol))
         .foreach(kv => newResVecBuilder.add(kv._1, kv._2))
       newResVecBuilder.length = sourcesNumBC.value
       val newResidualVec = newResVecBuilder.toSparseVector
@@ -57,14 +58,17 @@ object PersonalizedPageRank {
     // Global random walk
     def globalVertexProgram(vid: VertexId, attr: (SV[Double], SV[Double], SV[Double], Long), msgSumOpt: SV[Double]):
     (SV[Double], SV[Double], SV[Double], Long) = {
+//      println(s"$vid start")
       val oldEstimateVec = attr._1
       val oldResidualVec = attr._2
       val curResidualVec: SV[Double] = oldResidualVec +:+ msgSumOpt
 
       val maskResVecBuilder = new VectorBuilder[Double](length = -1)
-      curResidualVec.activeIterator.filter(kv => kv._2 >= tol).foreach(kv => maskResVecBuilder.add(kv._1, kv._2))
+      curResidualVec.activeIterator.filter(kv => kv._2 >= tol).foreach(kv => {
+        maskResVecBuilder.add(kv._1, kv._2)
+      })
       maskResVecBuilder.length = sourcesNumBC.value
-      val maskResidualVec = maskResVecBuilder.toSparseVector
+      val maskResidualVec = maskResVecBuilder.toSparseVector  // 需要push back的点的(vertexIndex, residualValue)
 
       val newEstimateVec = oldEstimateVec +:+ (maskResidualVec *:* resetProb)
 
@@ -73,6 +77,10 @@ object PersonalizedPageRank {
       newResVecBuilder.length = sourcesNumBC.value
       val newResidualVec = newResVecBuilder.toSparseVector
 
+//      println(s"newEstimateVec = ${newEstimateVec.activeSize}, newResidualVec = ${newResidualVec.activeSize}, " +
+//        s"maskResidualVec = ${maskResidualVec.activeSize}")
+
+//      println(s"$vid end")
       (newEstimateVec, newResidualVec, maskResidualVec, attr._4)
     }
 
@@ -134,7 +142,9 @@ object PersonalizedPageRank {
     }
 
     // mergeMsg func
-    def mergeMessage(a: SV[Double], b: SV[Double]): SV[Double] = a +:+ b
+    def mergeMessage(a: SV[Double], b: SV[Double]): SV[Double] = {
+      a +:+ b
+    }
 
     // Execute a dynamic version of Pregel
     val personalizedPageRankGraph = Pregel(
@@ -246,7 +256,12 @@ object PersonalizedPageRank {
     // vprog func
     def vertexProgram(vid: VertexId, attr: (SV[Double], SV[Double], SV[Int], Array[SV[Double]], Long),
       msgSumOpt: (SV[Int], Array[SV[Double]])): (SV[Double], SV[Double], SV[Int], Array[SV[Double]], Long) = {
-      (attr._1, attr._2, msgSumOpt._1, msgSumOpt._2, attr._5)
+      val newCounts = attr._3 +:+ msgSumOpt._1
+      val newValues = new ArrayBuffer[SV[Double]]
+      for(i <- attr._4.indices){
+        newValues += attr._4(i) +:+ msgSumOpt._2(i)
+      }
+      (attr._1, attr._2, newCounts, newValues.toArray, attr._5)
     }
 
     // sendMsg func
@@ -270,11 +285,11 @@ object PersonalizedPageRank {
     // mergeMsg func
     def mergeMessage(a: (SV[Int], Array[SV[Double]]), b: (SV[Int], Array[SV[Double]])):
     (SV[Int], Array[SV[Double]]) = {
-      val msg: Array[SV[Double]] = Array.fill(a._2.length)(zerosBC.value)
+      val msg = new ArrayBuffer[SV[Double]]
       for(i <- a._2.indices){
-        msg(i) = a._2(i) +:+ b._2(i)
+        msg += a._2(i) +:+ b._2(i)
       }
-      (a._1 +:+ b._1, msg)
+      (a._1 +:+ b._1, msg.toArray)
     }
 
     // Execute a dynamic version of Pregel

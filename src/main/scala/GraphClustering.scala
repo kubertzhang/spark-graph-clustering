@@ -4,19 +4,27 @@ import org.apache.spark.SparkContext
 import org.apache.spark.graphx._
 import org.apache.spark.internal.Logging
 import breeze.linalg.{SparseVector => SV}
-import breeze.linalg._
 
 object GraphClustering extends Logging{
   def main(args: Array[String]): Unit = {
-//    val conf = new SparkConf().setAppName("Graph Clustering").setMaster("local[*]")  // master: local
-    val conf = new SparkConf().setAppName("Graph Clustering")                        // master: cluster
+    // for local debug
+    val conf = new SparkConf().setAppName("Graph Clustering").setMaster("local[*]")
+    val args1 = Array("config/run-parameters.txt", "dataSet=dblp")
+    val configFile = args1(0)
+    val configParameters = args1(1)
+
+    // for cluster running
+//    val conf = new SparkConf().setAppName("Graph Clustering")
+//    val configFile = args(0)
+//    val configParameters = args(1)
+
     val sc = new SparkContext(conf)
     sc.setLogLevel("ERROR")
+    println("**************************************************************************")
 
     // para
     // *********************************************************************************
-    val configFile = "config/run-parameters.txt"
-    val parameters = new Parameters(args, configFile)
+    val parameters = new Parameters(configFile, configParameters)
 
     val verticesDataPath = parameters.verticesDataPath
     val edgesDataPath = parameters.edgesDataPath
@@ -35,26 +43,26 @@ object GraphClustering extends Logging{
 
     val approach = parameters.approach
 
-//    val approach = "basic"
-//    val approach = "incremental"
-//    val approach = "reserve"
-//    val approach = "sampling"
-
-    println("**************************************************************************")
     logInfo("**************************************************************************")
     parameters.printParameters()
     println("**************************************************************************")
     logInfo("**************************************************************************")
+
     // load graph
     // *********************************************************************************
     val originalGraph: Graph[(String, Long), Long] = GraphLoader  // [(vertexCode, vertexTypeId), edgeTypeId]
       .originalGraph(sc, verticesDataPath, edgesDataPath)
+//      .partitionBy(PartitionStrategy.EdgePartition2D, 280)
 //      .partitionBy(PartitionStrategy.EdgePartition2D)  // partition
       .cache()
+
+//    originalGraph.vertices.collect.filter(_._2._2 == -1L).sorted.foreach(println(_))
+
     val hubGraph: Graph[(String, Long), Long] = GraphLoader.hubGraph(originalGraph).cache()
-    val sources = hubGraph.vertices.keys.collect().sorted  // 提取主类顶点,按编号升序排列,保证id和vertexId一致
-//    val sources = hubGraph.vertices.keys.take(10000)
+
+    val sources = hubGraph.vertices.keys.collect().sorted  // 提取主类顶点,按编号升序排列,保证每次读取时vertexId顺序一致
     val sourcesBC = sc.broadcast(sources)
+//    sourcesBC.value.foreach(println(_))
 
     // incremental
     var hubPersonalizedPageRankGraph: Graph[(SV[Double], SV[Double], Long), Double] = null
@@ -79,7 +87,6 @@ object GraphClustering extends Logging{
           PersonalizedPageRank
             .basicPersonalizedPageRank(sc, originalGraph, sourcesBC, edgeWeights, resetProb, tol)
             .mask(hubGraph)
-          //    personalizedPageRankGraph.vertices.keys.collect().sorted.foreach(println(_))
         case "incremental" =>
           // 2. incremental approach
           optimizedLabel = true

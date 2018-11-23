@@ -1,12 +1,12 @@
-verticesDataPath: resources/dblp/test/dblp-vertices.txt
-edgesDataPath: resources/dblp/test/dblp-edges.txt
+verticesDataPath: resources/dblp/3k/dblp-vertices.txt
+edgesDataPath: resources/dblp/3k/dblp-edges.txt
 
 resetProb: 0.2
 tol: 0.001
 threshold: 0.001
 
-epsilon: 0.003
-minPts: 3
+epsilon: 0.005
+minPts: 2
 
 approach: basic
 

@@ -28,10 +28,15 @@ object GraphLoader {
         Edge(cols(0).toLong, cols(1).toLong, cols(2).toLong)
       }
     )
+    edgeData.unpersist()
 
     val defaultVertex = ("Missing", -1L)
 
-    Graph(vertices, edges, defaultVertex)
+    val originalGraph = Graph(vertices, edges, defaultVertex)
+    vertices.unpersist()
+    edges.unpersist()
+
+    originalGraph
   }
 
   def hubGraph(graph: Graph[(String, Long), Long]): Graph[(String, Long), Long] ={
@@ -87,7 +92,6 @@ object GraphLoader {
       // vertex attr: (estimateVec , residualVec, maskResidualVec, vertexType)
       (vid, leftAttr, rightAttr) => (leftAttr._1, leftAttr._2, leftAttr._3, rightAttr.get._2)
     }
-    //    attributeGraph.vertices.collect.foreach(println(_))
     sourcesInitMapBC.unpersist()
 
     attributeGraph
