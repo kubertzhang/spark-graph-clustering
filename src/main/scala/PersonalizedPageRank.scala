@@ -77,8 +77,8 @@ object PersonalizedPageRank {
       newResVecBuilder.length = sourcesNumBC.value
       val newResidualVec = newResVecBuilder.toSparseVector
 
-//      println(s"newEstimateVec = ${newEstimateVec.activeSize}, newResidualVec = ${newResidualVec.activeSize}, " +
-//        s"maskResidualVec = ${maskResidualVec.activeSize}")
+//      println(s"vid = $vid, newEstimateVec = ${newEstimateVec.activeSize}, " +
+//        s"newResidualVec = ${newResidualVec.activeSize}, maskResidualVec = ${maskResidualVec.activeSize}")
 
 //      println(s"$vid end")
       (newEstimateVec, newResidualVec, maskResidualVec, attr._4)

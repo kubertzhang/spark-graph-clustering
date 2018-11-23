@@ -17,6 +17,8 @@ object EdgeWeightUpdate {
       kv => (kv._1, kv._2.count(_ => true))
     ).sortBy(_._1).collect    // 排序保证顺序
     val vertexNumByTypeArrayBC = sc.broadcast(vertexNumByTypeArray)
+//    vertexNumByTypeArrayBC.value.foreach(println(_))
+//    println("==")
 
     // 得到每个属性的起始编号
     val startPosArray = vertexNumByTypeArrayBC.value.map(kv => kv._2)
@@ -24,6 +26,7 @@ object EdgeWeightUpdate {
       startPosArray.update(i, startPosArray(i-1) + startPosArray(i))
     }
     val startPosArrayBC = sc.broadcast(startPosArray)
+//    startPosArrayBC.value.foreach(println(_))
 
     // 初始化频率统计稀疏向量数组
     val attributeZeros = vertexNumByTypeArrayBC.value.map(
@@ -33,7 +36,6 @@ object EdgeWeightUpdate {
     val initialFrequencyGraph = edgeWeightUpdateGraph.mapVertices(
       (_, attr) => (attr._1, attr._2, attributeZeros)
     )
-//    initialFrequencyGraph.vertices.sortBy(_._1).foreach(println(_))
 
     // initialMsg
     val initialMessage = attributeZeros
@@ -115,20 +117,43 @@ object EdgeWeightUpdate {
       )
       .map(  // 计算每个簇内的每个属性对应的熵
         kv => {
+//          println("================")
           val t = kv._2.map(
             frequency => {
-              frequency :/= sum(frequency)  // 计算每个属性对应的顶点概率
-              frequency.activeValuesIterator.map(x => x * Math.log(x)).sum * (-1)  // 计算每个属性对应的熵
+//              println(frequency)
+              if(frequency.activeSize == 0){  // 处理不存在某些类型的属性边的情况
+                0.0
+              }
+              else{
+                frequency :/= sum(frequency)  // 计算每个属性对应的顶点概率
+                frequency.activeValuesIterator.map(x => x * Math.log(x)).sum * (-1)  // 计算每个属性对应的熵
+              }
             }
           )
-//          t.foreach(println(_))
+//          print(s"${kv._1}: \t")
+//          t.foreach(x => print(s"$x\t"))
+//          println()
           t
         }
       )
+//      .foreach(
+//        x => {
+//          x.foreach( y => print(s"$y\t"))
+//          println()
+//        }
+//      )
       .reduce(  // 统计所有簇的属性熵
         (x, y) => x +:+ y
       )
+//        .foreach(
+//          x => {
+//            print(s"$x\t")
+//          }
+//        )
+//      println()
     frequencyGraph.unpersist()
+
+//    attributeEntropyArray.foreach(println(_))
 
     val attributeInfluenceArray = attributeEntropyArray.map(
       x => {
