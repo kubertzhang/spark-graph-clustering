@@ -178,7 +178,6 @@ object EdgeWeightUpdate {
     }
 
     newEdgeWeights.toArray
-//    oldEdgeWeights
   }
 
   def updateEdgeWeight2(

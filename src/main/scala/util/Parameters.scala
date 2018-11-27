@@ -29,7 +29,7 @@ class Parameters(configFile: String, configParameters: String)  extends Serializ
   val approach: String = propertyLoader.get("approach", "basic")
 
   def printParameters(): Unit ={
-    println(s"Parameters: {resetProb=$resetProb, tol=$tol, threshold=$threshold, dataSet=$dataSet, " +
+    println(s"[RESULT]Parameters: {resetProb=$resetProb, tol=$tol, threshold=$threshold, dataSet=$dataSet, " +
       s"dataSize=$dataSize, verticesDataPath=$verticesDataPath, edgesDataPath=$edgesDataPath, " +
       s"epsilon=$epsilon, minPts=$minPts, initialEdgeWeights=${initialEdgeWeights.mkString("[", ", ", "]")}, " +
       s"samplingThreshold=$samplingThreshold, samplingRate=$samplingRate, approach=$approach}")

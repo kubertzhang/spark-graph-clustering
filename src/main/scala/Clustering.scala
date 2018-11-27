@@ -1,10 +1,10 @@
 import org.apache.spark.graphx._
 import org.apache.spark.rdd.RDD
-
 import scala.collection.mutable.ArrayBuffer
-import breeze.linalg.{SparseVector => SV}
 import org.apache.spark.SparkContext
 import org.apache.spark.internal.Logging
+import org.apache.spark.broadcast.Broadcast
+import scala.collection.mutable.{Map => MutableMap}
 
 object Clustering extends Logging {
 
@@ -75,28 +75,25 @@ object Clustering extends Logging {
 
   def clusterGraph(
     sc: SparkContext,
-    personalizedPageRankGraph: Graph[SV[Double], Double],
-    epsilon: Double = 0.005,
-    minPts: Long,
+    personalizedPageRankGraph: Graph[MutableMap[Long, Double], Double],
+    epsilonBC: Broadcast[Double],
+    minPtsBC: Broadcast[Int],
     optimized: Boolean): Graph[Long, Double] ={
 
-    require(epsilon >= 0 && epsilon <= 1, s"Epsilon must belong to [0, 1], but got $epsilon")
-
-    val minPtsBC = sc.broadcast(minPts)
+    require(epsilonBC.value >= 0 && epsilonBC.value <= 1, s"Epsilon must belong to [0, 1], but got ${epsilonBC.value}")
 
     // 筛选构造符合epsilon条件的主类顶点子图
     val edgeBuffer = ArrayBuffer[List[Int]]()
     personalizedPageRankGraph.vertices.collect.foreach(
       vid_scores => {
         val (vid, scores) = vid_scores
-        scores.activeIterator.foreach(
+        scores.foreach(
           uid_score =>{
             val (uid, score) = uid_score
             // 筛选主类顶点
-            if(score >= epsilon && uid != vid) {
-              //              println(s"vid = $vid, uid = ${uid_score._1}, score = ${uid_score._2}")
-              edgeBuffer += List(vid.toInt, uid)
-              edgeBuffer += List(uid, vid.toInt)
+            if(score >= epsilonBC.value && uid != vid) {
+              edgeBuffer += List(vid.toInt, uid.toInt)
+              edgeBuffer += List(uid.toInt, vid.toInt)
             }
           }
         )

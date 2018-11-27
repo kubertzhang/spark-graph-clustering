@@ -2,12 +2,12 @@ verticesDataPath: data/dblp/42k/dblp-vertices.txt
 edgesDataPath: data/dblp/42k/dblp-edges.txt
 
 resetProb: 0.2
-tol: 0.001
-threshold: 0.001
+tol: 0.01
+threshold: 0.01
 
-epsilon: 0.005
+epsilon: 0.02
 minPts: 2
 
-approach: incremental
+approach: reserve
 
 initialEdgeWeights: 1.0-1.0-1.0-1.0

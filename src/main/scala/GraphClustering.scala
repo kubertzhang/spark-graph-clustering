@@ -4,13 +4,13 @@ import org.apache.spark.SparkConf
 import org.apache.spark.SparkContext
 import org.apache.spark.graphx._
 import org.apache.spark.internal.Logging
-import breeze.linalg.{SparseVector => SV}
+import scala.collection.mutable.{Map => MutableMap}
 
 object GraphClustering extends Logging{
   def main(args: Array[String]): Unit = {
     // for local debug
 //    val conf = new SparkConf().setAppName("Graph Clustering").setMaster("local[*]")
-//    val args1 = Array("config/run-parameters.txt", "dataSet=dblp")
+//    val args1 = Array("config/run-parameters.txt", "dataSet=dblp,dataSize=1m")
 //    val configFile = args1(0)
 //    val configParameters = args1(1)
 
@@ -21,7 +21,7 @@ object GraphClustering extends Logging{
 
     val sc = new SparkContext(conf)
     sc.setLogLevel("ERROR")
-    println("**************************************************************************")
+    println("[RESULT]**************************************************************************")
 
     // para
     // *********************************************************************************
@@ -30,50 +30,65 @@ object GraphClustering extends Logging{
     val verticesDataPath = parameters.verticesDataPath
     val edgesDataPath = parameters.edgesDataPath
 
-    val resetProb = parameters.resetProb
-    val tol = parameters.tol
-    val epsilon = parameters.epsilon
-    val minPts = parameters.minPts
+    val resetProbBC = sc.broadcast(parameters.resetProb)
+    val tolBC = sc.broadcast(parameters.tol)
+    val epsilonBC = sc.broadcast(parameters.epsilon)
+    val minPtsBC = sc.broadcast(parameters.minPts)
     val threshold = parameters.threshold
+
+    val initialEdgeWeights = parameters.initialEdgeWeights
+    var edgeWeights = initialEdgeWeights
+    val initialEdgeWeightsBC = sc.broadcast(initialEdgeWeights)
 
     val samplingThreshold = parameters.samplingThreshold
     val samplingRate = parameters.samplingRate
 
-    val initialEdgeWeights = parameters.initialEdgeWeights
-    var edgeWeights: Array[Double] = initialEdgeWeights
-
     val approach = parameters.approach
 
-    logInfo("**************************************************************************")
     parameters.printParameters()
-    println("**************************************************************************")
-    logInfo("**************************************************************************")
+    println("[RESULT]**************************************************************************")
 
     // load graph
     // *********************************************************************************
     val originalGraph: Graph[(String, Long), Long] = GraphLoader  // [(vertexCode, vertexTypeId), edgeTypeId]
       .originalGraph(sc, verticesDataPath, edgesDataPath)
-//      .partitionBy(PartitionStrategy.EdgePartition2D, 280)
+//      .partitionBy(PartitionStrategy.EdgePartition2D, 280)  // (partition, partitionNum)
 //      .partitionBy(PartitionStrategy.EdgePartition2D)  // partition
       .cache()
 
-    // test
-//    originalGraph.vertices.filter(_._2._2 == -1L).foreach(println(_))
-
-//    originalGraph.vertices.collect.filter(_._2._2 == -1L).sorted.foreach(println(_))
+//    originalGraph.vertices.collect.foreach(println(_))
 
     val hubGraph: Graph[(String, Long), Long] = GraphLoader.hubGraph(originalGraph).cache()
 
-    val sources = hubGraph.vertices.keys.collect().sorted  // 提取主类顶点,按编号升序排列,保证每次读取时vertexId顺序一致
+    // 提取主类顶点
+    val sources = hubGraph.vertices.keys.collect()
     val sourcesBC = sc.broadcast(sources)
-//    sourcesBC.value.foreach(println(_))
 
     // incremental
-    var hubPersonalizedPageRankGraph: Graph[(SV[Double], SV[Double], Long), Double] = null
+    var hubPersonalizedPageRankGraph: Graph[(MutableMap[Long, Double], MutableMap[Long, Double], Long), Double] = null
     // reserve
-    var dynamicPersonalizedPageRankGraph: Graph[(SV[Double], SV[Double], Array[SV[Double]], Long), Double] = null
+    var dynamicPersonalizedPageRankGraph: Graph[(MutableMap[Long, Double], MutableMap[Long, Double],
+      Array[MutableMap[Long, Double]], Long), Double] = null
 
     var finalClusteringGraph: Graph[(Long, Long), Long] = null
+
+
+    // test
+
+//    val m1 = Array(MutableMap(1 -> 1, 2 -> 2, 3 -> 3))
+//    val m2 = Array(MutableMap(3 -> 3, 4 -> 4, 5 -> 5))
+//    var m3 = m1
+//
+//    m1(0) = (m1(0) /: m2(0))(
+//      (map, kv) => { map + (kv._1 -> (kv._2 + map.getOrElse(kv._1, 0))) }
+//    )
+//
+//    println(s"m1 = ${m1(0)}")
+//    println(s"m2 = ${m2(0)}")
+//    println(s"m3 = ${m3(0)}")
+//
+//    require(false)
+
 
     var mse = Double.MaxValue
     var numIteration = 0
@@ -85,52 +100,54 @@ object GraphClustering extends Logging{
       // personalized page rank
       // *********************************************************************************
       val timePPRBegin = System.currentTimeMillis
-      val personalizedPageRankGraph: Graph[SV[Double], Double] = approach match {
+      val personalizedPageRankGraph: Graph[MutableMap[Long, Double], Double] = approach match {
         case "basic" =>
           // 1. basic approach
           optimizedLabel = false
           PersonalizedPageRank
-            .basicPersonalizedPageRank(sc, originalGraph, sourcesBC, edgeWeights, resetProb, tol)
+            .basicPersonalizedPageRank(originalGraph, sourcesBC, edgeWeights, resetProbBC, tolBC)
             .mask(hubGraph)
         case "incremental" =>
           // 2. incremental approach
           optimizedLabel = true
 
+          // 预处理
           if(numIteration == 1){
             val incrementalTimeBegin = System.currentTimeMillis
             hubPersonalizedPageRankGraph = PersonalizedPageRank
-              .hubPersonalizedPageRank(sc, originalGraph, sourcesBC, edgeWeights, resetProb, tol)
+              .hubPersonalizedPageRank(originalGraph, sourcesBC, edgeWeights, resetProbBC, tolBC)
               .cache()
             val incrementalTimeEnd = System.currentTimeMillis
             PreProcessingTime = incrementalTimeEnd - incrementalTimeBegin
           }
 
           PersonalizedPageRank
-            .incrementalPersonalizedPageRank(sc, hubPersonalizedPageRankGraph, initialEdgeWeights,
-              edgeWeights, sc.broadcast(sourcesBC.value.length), resetProb, tol)
+            .incrementalPersonalizedPageRank(hubPersonalizedPageRankGraph, initialEdgeWeightsBC, edgeWeights,
+              resetProbBC, tolBC)
             .mask(hubGraph)
         case "reserve" =>
           // 3. reserve approach
           optimizedLabel = true
 
+          // 预处理
           if(numIteration == 1){
             val reserveTimeBegin = System.currentTimeMillis
             dynamicPersonalizedPageRankGraph = PersonalizedPageRank
-              .dynamicPersonalizedPageRank(sc, originalGraph, sourcesBC, edgeWeights, resetProb, tol)
+              .dynamicPersonalizedPageRank(sc, originalGraph, sourcesBC, edgeWeights, resetProbBC, tolBC)
               .cache()
             val reserveTimeEnd = System.currentTimeMillis
             PreProcessingTime = reserveTimeEnd - reserveTimeBegin
           }
           PersonalizedPageRank
-          .reservePersonalizedPageRank(sc, dynamicPersonalizedPageRankGraph, initialEdgeWeights,
-            edgeWeights, sc.broadcast(sourcesBC.value.length), resetProb, tol)
+          .reservePersonalizedPageRank(sc, dynamicPersonalizedPageRankGraph, initialEdgeWeightsBC,
+            edgeWeights, resetProbBC, tolBC)
             .mask(hubGraph)
         case "sampling" =>
           // 4. sampling approach
           optimizedLabel = true
           val samplingSwitch = true
           PersonalizedPageRank
-            .samplingPersonalizedPageRank(sc, originalGraph, sourcesBC, edgeWeights, resetProb, tol,
+            .samplingPersonalizedPageRank(originalGraph, sourcesBC, edgeWeights, resetProbBC, tolBC,
               samplingSwitch, samplingThreshold, samplingRate)
             .mask(hubGraph)
       }
@@ -142,13 +159,10 @@ object GraphClustering extends Logging{
       // *********************************************************************************
       val timeClusteringBegin = System.currentTimeMillis
       val clusteringGraph: Graph[Long, Double] =
-      Clustering.clusterGraph(sc, personalizedPageRankGraph, epsilon, minPts, optimizedLabel)
+      Clustering.clusterGraph(sc, personalizedPageRankGraph, epsilonBC, minPtsBC, optimizedLabel)
       val timeClusteringEnd = System.currentTimeMillis
       personalizedPageRankGraph.unpersist()
-      println(s"[result-$approach-clustering running time]: " + (timeClusteringEnd - timeClusteringBegin))
-      logInfo(s"[result-$approach-clustering running time]: " + (timeClusteringEnd - timeClusteringBegin))
-
-//      println(s"s = ${clusteringGraph.vertices.filter(_._2 > 0L).count()}")
+      println(s"[RESULT][result-$approach-clustering running time]: " + (timeClusteringEnd - timeClusteringBegin))
 
       // edge weight update
       // *********************************************************************************
@@ -168,8 +182,7 @@ object GraphClustering extends Logging{
       edgeWeights = EdgeWeightUpdate.updateEdgeWeight(sc, edgeWeightUpdateGraph, edgeWeights)
       val timeUpdateEnd = System.currentTimeMillis
       edgeWeightUpdateGraph.unpersist()
-      println(s"[result-$approach-weight update running time]: " + (timeUpdateEnd - timeUpdateBegin))
-      logInfo(s"[result-$approach-weight update running time]: " + (timeUpdateEnd - timeUpdateBegin))
+      println(s"[RESULT][result-$approach-weight update running time]: " + (timeUpdateEnd - timeUpdateBegin))
 
       // mse
       mse = 0.0
@@ -178,38 +191,29 @@ object GraphClustering extends Logging{
       }
       mse = math.sqrt(mse) / edgeWeights.length
 
-      print(s"[result-$approach-$numIteration-edgeWeights]: ")
-      logInfo(s"[result-$approach-$numIteration-edgeWeights]: ")
+      print(s"[RESULT][result-$approach-$numIteration-edgeWeights]: ")
       for(x <- edgeWeights){
         print(s"$x\t")
-        logInfo(s"$x\t")
       }
       println()
-      logInfo("\n")
-      println(s"[result-$approach-$numIteration-mse]: $mse")
-      logInfo(s"[result-$approach-$numIteration-mse]: $mse")
-      println("**************************************************************************")
-      logInfo("**************************************************************************")
+      println(s"[RESULT][result-$approach-$numIteration-mse]: $mse")
+      println("[RESULT]**************************************************************************")
     }
     val timeEnd = System.currentTimeMillis
 
     // clustering metric & result survey
     // *********************************************************************************
-    println("**************************************************************************")
-    logInfo("**************************************************************************")
-    println("*************** distributed graph clustering results *********************")
-    logInfo("*************** distributed graph clustering results *********************")
+    println("[RESULT]**************************************************************************")
+    println("[RESULT]*************** distributed graph clustering results *********************")
     
     // parameters
     parameters.printParameters()
     
     // running time
-    println(s"[result-total running time]: " + (timeEnd - timeBegin - PreProcessingTime))
-    logInfo(s"[result-total running time]: " + (timeEnd - timeBegin - PreProcessingTime))
+    println(s"[RESULT][result-total running time]: " + (timeEnd - timeBegin - PreProcessingTime))
     
     // edge weights
-    print(s"[result-final edgeWeights]: ")
-    logInfo(s"[result-final edgeWeights]: ")
+    print(s"[RESULT][result-final edgeWeights]: ")
     for(x <- edgeWeights){
       print(s"$x\t")
       logInfo(s"$x\t")
@@ -217,18 +221,18 @@ object GraphClustering extends Logging{
     println()
     
     // iteration times
-    println(s"[result-iteration times]: $numIteration")
+    println(s"[RESULT][result-iteration times]: $numIteration")
 
     // clustering quality
+    val clusteredSourcesSize = finalClusteringGraph.vertices.filter(_._2._2 > 0L).count()
     val density = ClusteringMetric.density(finalClusteringGraph)
     val entropy = ClusteringMetric.entropy(sc, finalClusteringGraph, edgeWeights)
-    println(s"[result-density]: $density")
-    println(s"[result-entropy]: $entropy")
-    logInfo(s"[result-density]: $density")
-    logInfo(s"[result-entropy]: $entropy")
+    println(s"[RESULT][result-sources size]: ${sourcesBC.value.length}")
+    println(s"[RESULT][result-clustered vertices size]: $clusteredSourcesSize")
+    println(s"[RESULT][result-density]: $density")
+    println(s"[RESULT][result-entropy]: $entropy")
 
-    println("**************************************************************************")
-    logInfo("**************************************************************************")
+    println("[RESULT]**************************************************************************")
     sc.stop()
   }
 }
