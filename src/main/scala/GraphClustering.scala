@@ -72,24 +72,6 @@ object GraphClustering extends Logging{
 
     var finalClusteringGraph: Graph[(Long, Long), Long] = null
 
-
-    // test
-
-//    val m1 = Array(MutableMap(1 -> 1, 2 -> 2, 3 -> 3))
-//    val m2 = Array(MutableMap(3 -> 3, 4 -> 4, 5 -> 5))
-//    var m3 = m1
-//
-//    m1(0) = (m1(0) /: m2(0))(
-//      (map, kv) => { map + (kv._1 -> (kv._2 + map.getOrElse(kv._1, 0))) }
-//    )
-//
-//    println(s"m1 = ${m1(0)}")
-//    println(s"m2 = ${m2(0)}")
-//    println(s"m3 = ${m3(0)}")
-//
-//    require(false)
-
-
     var mse = Double.MaxValue
     var numIteration = 0
     var optimizedLabel: Boolean = true
@@ -152,8 +134,7 @@ object GraphClustering extends Logging{
             .mask(hubGraph)
       }
       val timePPREnd = System.currentTimeMillis
-      println(s"[result-$approach-ppr running time]: " + (timePPREnd - timePPRBegin))
-      logInfo(s"[result-$approach-ppr running time]: " + (timePPREnd - timePPRBegin))
+      println(s"[RESULT][result-$approach-ppr running time]: " + (timePPREnd - timePPRBegin))
 
       // clustering
       // *********************************************************************************
