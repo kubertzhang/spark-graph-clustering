@@ -8,6 +8,6 @@ threshold: 0.01
 epsilon: 0.02
 minPts: 2
 
-approach: reserve
+approach: basic
 
 initialEdgeWeights: 1.0-1.0-1.0-1.0

@@ -9,8 +9,7 @@ libraryDependencies ++= Seq(
   "org.apache.spark" %% "spark-graphx" % "2.2.0",
   // Breeze
   "org.scalanlp" %% "breeze" % "0.13.2",
-  "org.scalanlp" %% "breeze-natives" % "0.13.2",
-  "org.scalanlp" %% "breeze-viz" % "0.13.2"
+  "org.scalanlp" %% "breeze-natives" % "0.13.2"
 )
 
 resolvers ++= Seq(

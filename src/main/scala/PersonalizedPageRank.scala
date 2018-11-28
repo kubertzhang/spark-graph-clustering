@@ -242,6 +242,7 @@ object PersonalizedPageRank {
           (attr._1, attr._2, new Array[Int](attributeNumBC.value), reserveMapArray, attr._4)
         }
       )  // (vid, (estimateMap , residualMap, reserveMapArray, vertexType))
+    attributeGraph.unpersist()
 
     // initialMsg
     val initialMessage =
@@ -252,15 +253,15 @@ object PersonalizedPageRank {
         Array[MutableMap[Long, Double]], Long), msgSumOpt: (Array[Int], Array[MutableMap[Long, Double]])):
         (MutableMap[Long, Double], MutableMap[Long, Double], Array[Int], Array[MutableMap[Long, Double]], Long) = {
 
-//      val time1 = System.currentTimeMillis
+      val time1 = System.currentTimeMillis
       val newCounts = attr._3 +:+ msgSumOpt._1
       for(i <- attr._4.indices){
         attr._4(i) = (attr._4(i) /: msgSumOpt._2(i))(
           (map, kv) => { map + (kv._1 -> (kv._2 + map.getOrElse(kv._1, 0.0))) }
         )
       }
-//      val time2 = System.currentTimeMillis
-//      println("vp = " + (time2 - time1))
+      val time2 = System.currentTimeMillis
+      println("vp = " + (time2 - time1))
 
       (attr._1, attr._2, newCounts, attr._4, attr._5)
     }
@@ -270,22 +271,31 @@ object PersonalizedPageRank {
         Array[MutableMap[Long, Double]], Long), Double]): Iterator[(VertexId, (Array[Int],
         Array[MutableMap[Long, Double]]))] = {
 
-//      val time1 = System.currentTimeMillis
+      val time1 = System.currentTimeMillis
       val srcVertexType = edge.srcAttr._5
       val dstVertexType = edge.dstAttr._5
-      if(srcVertexType != 0L && dstVertexType == 0L){
-        val countArray = new Array[Int](attributeNumBC.value)
+
+      if((srcVertexType != 0L) && (dstVertexType == 0L) && (edge.attr > 0.05)){
+//        val countArray = new Array[Int](attributeNumBC.value)
+//        val attributeIndex = (srcVertexType - 1).toInt
+//        countArray.update(attributeIndex, 1)
+//        val reserveMapArray = Array.fill(attributeNumBC.value)(MutableMap[Long, Double]())
+//        reserveMapArray(attributeIndex) = edge.srcAttr._1
+        // -------------------------------------------------
+
         val attributeIndex = (srcVertexType - 1).toInt
-        countArray.update(attributeIndex, 1)
-        val reserveMapArray = Array.fill(attributeNumBC.value)(MutableMap[Long, Double]())
-        reserveMapArray(attributeIndex) = edge.srcAttr._1
-//        val time2 = System.currentTimeMillis
-//        println("send = " + (time2 - time1))
-        Iterator((edge.dstId, (countArray, reserveMapArray)))
+        edge.srcAttr._3.update(attributeIndex, 1)
+        edge.srcAttr._4(attributeIndex) = edge.srcAttr._1
+
+        // -------------------------------------------------
+
+        val time2 = System.currentTimeMillis
+        println("send = " + (time2 - time1))
+        Iterator((edge.dstId, (edge.srcAttr._3, edge.srcAttr._4)))
       }
       else {
-//        val time2 = System.currentTimeMillis
-//        println("send = " + (time2 - time1))
+        val time2 = System.currentTimeMillis
+        println("send = " + (time2 - time1))
         Iterator.empty
       }
     }
@@ -294,32 +304,17 @@ object PersonalizedPageRank {
     def mergeMessage(a: (Array[Int], Array[MutableMap[Long, Double]]), b: (Array[Int],
         Array[MutableMap[Long, Double]])): (Array[Int], Array[MutableMap[Long, Double]]) = {
 
+      val time1 = System.currentTimeMillis
       for(i <- a._2.indices){
         a._2(i) = (a._2(i) /: b._2(i))(
           (map, kv) => { map + (kv._1 -> (kv._2 + map.getOrElse(kv._1, 0.0))) }
         )
       }
+
+      val time2 = System.currentTimeMillis
+      println("merge = " + (time2 - time1))
       (a._1 +:+ b._1, a._2)
     }
-
-    // ------------------------------------------
-    println("start")
-    val time1 = System.currentTimeMillis
-    Pregel(
-      graph = dynamicAttributeGraph,
-      initialMsg = initialMessage,
-      maxIterations = 1,  // 只处理邻居顶点
-      activeDirection = EdgeDirection.Out)(
-      vprog = vertexProgram,
-      sendMsg = sendMessage,
-      mergeMsg = mergeMessage
-    )
-    val time2 = System.currentTimeMillis
-    println("time = " + (time2 - time1))
-//    require(false)
-
-    // ------------------------------------------
-
 
     // Execute a dynamic version of Pregel
     val dynamicPersonalizedPageRankGraph = Pregel(
@@ -365,7 +360,7 @@ object PersonalizedPageRank {
         if(vertexType == 0L){
           var newResidualMap = residualMap
           for(i <- 0 until attributeNumBC.value){
-            reserveMapArray(i).mapValues(x => x * (newEdgeWeights(i) - oldEdgeWeightsBC.value(i)))
+            reserveMapArray(i).mapValues(x => x * (newEdgeWeights(i) - oldEdgeWeightsBC.value(i))).filter(_._2 > 0.0)
             newResidualMap = (newResidualMap /: reserveMapArray(i))(
               (map, kv) => { map + (kv._1 -> (kv._2 + map.getOrElse(kv._1, 0.0))) }
             )

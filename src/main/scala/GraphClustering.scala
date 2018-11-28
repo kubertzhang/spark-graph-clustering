@@ -1,9 +1,11 @@
 import util.Parameters
 import util.ClusteringMetric
+import util.ParameterSelection
 import org.apache.spark.SparkConf
 import org.apache.spark.SparkContext
 import org.apache.spark.graphx._
 import org.apache.spark.internal.Logging
+
 import scala.collection.mutable.{Map => MutableMap}
 
 object GraphClustering extends Logging{
@@ -135,6 +137,18 @@ object GraphClustering extends Logging{
       }
       val timePPREnd = System.currentTimeMillis
       println(s"[RESULT][result-$approach-ppr running time]: " + (timePPREnd - timePPRBegin))
+
+      // parameter selection
+      // *********************************************************************************
+//      val EpsilonAndMinPtsMap = ParameterSelection.selectEpsilonAndMinPts(sc, personalizedPageRankGraph)
+//      EpsilonAndMinPtsMap.toArray.sortBy(_._1).foreach(
+//        kv => {
+//          kv._2.toArray.sortBy(_._1).foreach(
+//            kv2 => println(s"[RESULT]epsilon=${kv._1}: ${kv2._1}-${kv2._2}")
+//          )
+//        }
+//      )
+//      require(false)
 
       // clustering
       // *********************************************************************************
