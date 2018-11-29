@@ -11,15 +11,15 @@ import scala.collection.mutable.{Map => MutableMap}
 object GraphClustering extends Logging{
   def main(args: Array[String]): Unit = {
     // for local debug
-//    val conf = new SparkConf().setAppName("Graph Clustering").setMaster("local[*]")
-//    val args1 = Array("config/run-parameters.txt", "dataSet=dblp,dataSize=1m")
-//    val configFile = args1(0)
-//    val configParameters = args1(1)
+    val conf = new SparkConf().setAppName("Graph Clustering").setMaster("local[*]")
+    val args1 = Array("config/run-parameters.txt", "dataSet=dblp,dataSize=1m")
+    val configFile = args1(0)
+    val configParameters = args1(1)
 
     // for cluster running
-    val conf = new SparkConf().setAppName("Graph Clustering")
-    val configFile = args(0)
-    val configParameters = args(1)
+//    val conf = new SparkConf().setAppName("Graph Clustering")
+//    val configFile = args(0)
+//    val configParameters = args(1)
 
     val sc = new SparkContext(conf)
     sc.setLogLevel("ERROR")
@@ -79,7 +79,7 @@ object GraphClustering extends Logging{
     var optimizedLabel: Boolean = true
     var PreProcessingTime: Long = 0L
     val timeBegin = System.currentTimeMillis
-    while(mse > threshold){
+    while(mse > threshold) {
       numIteration += 1
       // personalized page rank
       // *********************************************************************************
@@ -172,6 +172,8 @@ object GraphClustering extends Logging{
 
       // result
       finalClusteringGraph = edgeWeightUpdateGraph
+      val density = ClusteringMetric.density(finalClusteringGraph)
+      println(s"[RESULT][result-density]: $density")
 
       val oldEdgeWeights = edgeWeights
       edgeWeights = EdgeWeightUpdate.updateEdgeWeight(sc, edgeWeightUpdateGraph, edgeWeights)

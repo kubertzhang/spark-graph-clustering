@@ -19,7 +19,7 @@ object ClusteringMetric {
       },
       (a,b) => a + b
     )
-    val insideClustersEdgeNum = insideClusters.map(x => x._2).reduce(_+_) / 2.0
+    val insideClustersEdgeNum = insideClusters.map(x => x._2).reduce(_+_)
     val density = 1.0 * insideClustersEdgeNum / totalEdgesNum
 
     density
