@@ -7,7 +7,370 @@ import scala.collection.mutable.ArrayBuffer
 
 object EdgeWeightUpdate {
 
+  // 最初方案
   def updateEdgeWeight(
+      sc: SparkContext,
+      edgeWeightUpdateGraph: Graph[(Long, Long), Long],  // [(vertexTypeId, clusterId), edgeTypeId]
+      oldEdgeWeights: Array[Double]): Array[Double] = {
+
+    // 计算每种属性的顶点个数
+    val vertexNumByTypeArray = edgeWeightUpdateGraph.vertices.groupBy(_._2._1).map(
+      kv => (kv._1, kv._2.count(_ => true))
+    ).sortBy(_._1).collect    // 排序保证顺序
+    val vertexNumByTypeArrayBC = sc.broadcast(vertexNumByTypeArray)
+    //    vertexNumByTypeArrayBC.value.foreach(println(_))
+    //    println("==")
+
+    // 得到每个属性的起始编号
+    val startPosArray = vertexNumByTypeArrayBC.value.map(kv => kv._2)
+    for(i <- 1 until startPosArray.length){
+      startPosArray.update(i, startPosArray(i-1) + startPosArray(i))
+    }
+    val startPosArrayBC = sc.broadcast(startPosArray)
+    //    startPosArrayBC.value.foreach(println(_))
+
+    // 初始化频率统计稀疏向量数组
+    val attributeZeros = vertexNumByTypeArrayBC.value.map(
+      kv => SV.zeros[Double](kv._2.toInt)
+    ).drop(1)
+
+    val initialFrequencyGraph = edgeWeightUpdateGraph.mapVertices(
+      (_, attr) => (attr._1, attr._2, attributeZeros)
+    )
+
+    // initialMsg
+    val initialMessage = attributeZeros
+
+    // vprog func
+    def vertexProgram(vid: VertexId, attr: (Long, Long, Array[SV[Double]]), msgSumOpt: Array[SV[Double]]):
+    (Long, Long, Array[SV[Double]]) = {
+      val newValues = new ArrayBuffer[SV[Double]]
+      for(i <- msgSumOpt.indices){
+        newValues += attr._3(i) +:+ msgSumOpt(i)
+      }
+
+      (attr._1, attr._2, newValues.toArray)
+    }
+
+    // sendMsg func
+    def sendMessage(edge: EdgeTriplet[(Long, Long, Array[SV[Double]]), Long]):
+    Iterator[(VertexId, Array[SV[Double]])] = {
+      val srcVertexType = edge.srcAttr._1
+      val dstClusterId = edge.dstAttr._2
+
+      if(srcVertexType != 0L && dstClusterId > 0L){
+
+        val attributeIndex = (srcVertexType - 1).toInt
+        val pos = (edge.srcId - startPosArrayBC.value(attributeIndex)).toInt
+
+        val attributeMsg = vertexNumByTypeArrayBC.value.map(
+          kv => SV.zeros[Double](kv._2.toInt)
+        ).drop(1)
+
+        //        println(s"vid = ${edge.srcId}, attributeIndex = $attributeIndex, pos = $pos")
+
+        attributeMsg(attributeIndex).update(pos, 1.0)  // 属性顶点计数
+
+        Iterator((edge.dstId, attributeMsg))
+      }
+      else {
+        Iterator.empty
+      }
+    }
+
+    // mergeMsg func
+    def mergeMessage(a: Array[SV[Double]], b: Array[SV[Double]]): Array[SV[Double]] = {
+      val msg = new ArrayBuffer[SV[Double]]
+      for(i <- a.indices){
+        msg += a(i) +:+ b(i)
+      }
+
+      msg.toArray
+    }
+
+    // Execute a dynamic version of Pregel
+    val frequencyGraph = Pregel(
+      graph = initialFrequencyGraph,
+      initialMsg = initialMessage,
+      maxIterations = 1,  // 只处理邻居顶点
+      activeDirection = EdgeDirection.Out)(
+      vprog = vertexProgram,
+      sendMsg = sendMessage,
+      mergeMsg = mergeMessage
+    )
+    initialFrequencyGraph.unpersist()
+
+    //    println(s"e ==== ${frequencyGraph.vertices.filter(_._2._2 > 0L).count()}")
+
+    val attributeEntropyArray = frequencyGraph.vertices
+      .filter(_._2._2 > 0L)  // 筛选出被正确聚类的主类顶点
+      .map(
+      kv => (kv._2._2, kv._2._3)  // (clusterId, frequencyArray)
+    )
+      .reduceByKey(  // 统计每个簇内的每个属性对应的顶点频率
+        (x, y) => {
+          val values = new ArrayBuffer[SV[Double]]
+          for(i <- x.indices){
+            values += x(i) +:+ y(i)
+          }
+          values.toArray
+        }
+      )
+      .map(  // 计算每个簇内的每个属性对应的熵
+        kv => {
+          //          println("================")
+          val t = kv._2.map(
+            frequency => {
+              //              println(frequency)
+              if(frequency.activeSize == 0){  // 处理不存在某些类型的属性边的情况
+                0.0
+              }
+              else{
+                frequency :/= sum(frequency)  // 计算每个属性对应的顶点概率
+                frequency.activeValuesIterator.map(x => x * Math.log(x)).sum * (-1)  // 计算每个属性对应的熵
+              }
+            }
+          )
+          //          print(s"${kv._1}: \t")
+          //          t.foreach(x => print(s"$x\t"))
+          //          println()
+          t
+        }
+      )
+      //      .foreach(
+      //        x => {
+      //          x.foreach( y => print(s"$y\t"))
+      //          println()
+      //        }
+      //      )
+      .reduce(  // 统计所有簇的属性熵
+      (x, y) => x +:+ y
+    )
+    //        .foreach(
+    //          x => {
+    //            print(s"$x\t")
+    //          }
+    //        )
+    //      println()
+    frequencyGraph.unpersist()
+
+    //    attributeEntropyArray.foreach(println(_))
+
+    val attributeInfluenceArray = attributeEntropyArray.map(
+      x => {
+        // 处理熵为0的情况
+        val modifiedEntropy = if(x < 1E-6) attributeEntropyArray.sum / attributeEntropyArray.length else x
+        // influence
+        1.0 / modifiedEntropy
+      }
+    )
+
+    val attributeWeightSum = oldEdgeWeights.sum - 1.0
+    val deltaAttributeWeights = attributeInfluenceArray.map(
+      x => {
+        (x / attributeInfluenceArray.sum) * attributeWeightSum
+      }
+    )
+
+    val newEdgeWeights = new ArrayBuffer[Double]
+    newEdgeWeights += 1.0
+    for(i <- 1 until oldEdgeWeights.length){
+      newEdgeWeights += (oldEdgeWeights(i) + deltaAttributeWeights(i-1)) / 2.0
+    }
+
+    newEdgeWeights.toArray
+  }
+
+  // entropy 进行归一化: entropy / cluster size
+  def updateEdgeWeight2(
+    sc: SparkContext,
+    edgeWeightUpdateGraph: Graph[(Long, Long), Long],  // [(vertexTypeId, clusterId), edgeTypeId]
+    oldEdgeWeights: Array[Double]): Array[Double] = {
+
+    // 计算每种属性的顶点个数
+    val vertexNumByTypeArray = edgeWeightUpdateGraph.vertices.groupBy(_._2._1).map(
+      kv => (kv._1, kv._2.count(_ => true))
+    ).sortBy(_._1).collect    // 排序保证顺序
+    val vertexNumByTypeArrayBC = sc.broadcast(vertexNumByTypeArray)
+    //    vertexNumByTypeArrayBC.value.foreach(println(_))
+    //    println("==")
+
+    // 得到每个属性的起始编号
+    val startPosArray = vertexNumByTypeArrayBC.value.map(kv => kv._2)
+    for(i <- 1 until startPosArray.length){
+      startPosArray.update(i, startPosArray(i-1) + startPosArray(i))
+    }
+    val startPosArrayBC = sc.broadcast(startPosArray)
+    //    startPosArrayBC.value.foreach(println(_))
+
+    // 初始化频率统计稀疏向量数组
+    val attributeZeros = vertexNumByTypeArrayBC.value.map(
+      kv => SV.zeros[Double](kv._2.toInt)
+    ).drop(1)
+
+    val initialFrequencyGraph = edgeWeightUpdateGraph.mapVertices(
+      (_, attr) => (attr._1, attr._2, attributeZeros)
+    )
+
+    // initialMsg
+    val initialMessage = attributeZeros
+
+    // vprog func
+    def vertexProgram(vid: VertexId, attr: (Long, Long, Array[SV[Double]]), msgSumOpt: Array[SV[Double]]):
+    (Long, Long, Array[SV[Double]]) = {
+      val newValues = new ArrayBuffer[SV[Double]]
+      for(i <- msgSumOpt.indices){
+        newValues += attr._3(i) +:+ msgSumOpt(i)
+      }
+
+      (attr._1, attr._2, newValues.toArray)
+    }
+
+    // sendMsg func
+    def sendMessage(edge: EdgeTriplet[(Long, Long, Array[SV[Double]]), Long]):
+    Iterator[(VertexId, Array[SV[Double]])] = {
+      val srcVertexType = edge.srcAttr._1
+      val dstClusterId = edge.dstAttr._2
+
+      if(srcVertexType != 0L && dstClusterId > 0L){
+
+        val attributeIndex = (srcVertexType - 1).toInt
+        val pos = (edge.srcId - startPosArrayBC.value(attributeIndex)).toInt
+
+        val attributeMsg = vertexNumByTypeArrayBC.value.map(
+          kv => SV.zeros[Double](kv._2.toInt)
+        ).drop(1)
+
+        //        println(s"vid = ${edge.srcId}, attributeIndex = $attributeIndex, pos = $pos")
+
+        attributeMsg(attributeIndex).update(pos, 1.0)  // 属性顶点计数
+
+        Iterator((edge.dstId, attributeMsg))
+      }
+      else {
+        Iterator.empty
+      }
+    }
+
+    // mergeMsg func
+    def mergeMessage(a: Array[SV[Double]], b: Array[SV[Double]]): Array[SV[Double]] = {
+      val msg = new ArrayBuffer[SV[Double]]
+      for(i <- a.indices){
+        msg += a(i) +:+ b(i)
+      }
+
+      msg.toArray
+    }
+
+    // Execute a dynamic version of Pregel
+    val frequencyGraph = Pregel(
+      graph = initialFrequencyGraph,
+      initialMsg = initialMessage,
+      maxIterations = 1,  // 只处理邻居顶点
+      activeDirection = EdgeDirection.Out)(
+      vprog = vertexProgram,
+      sendMsg = sendMessage,
+      mergeMsg = mergeMessage
+    )
+    initialFrequencyGraph.unpersist()
+
+    //    println(s"e ==== ${frequencyGraph.vertices.filter(_._2._2 > 0L).count()}")
+
+    // 提取被聚类的主类顶点
+    val clusteredVertices = frequencyGraph.vertices
+      .filter(_._2._2 > 0L)  // 筛选出被正确聚类的主类顶点
+      .map(
+      kv => (kv._2._2, kv._2._3)  // (clusterId, frequencyArray)
+    )
+
+    // 统计每个簇的大小
+    val clusterSizeMap = clusteredVertices.countByKey()
+    val clusterSizeMapBC = sc.broadcast(clusterSizeMap)
+
+    val attributeEntropyArray = clusteredVertices
+      .reduceByKey(  // 统计每个簇内的每个属性对应的顶点频率
+        (x, y) => {
+          val values = new ArrayBuffer[SV[Double]]
+          for(i <- x.indices){
+            values += x(i) +:+ y(i)
+          }
+          values.toArray
+        }
+      )
+      .map(  // 计算每个簇内的每个属性对应的熵
+        kv => {
+          //          println("================")
+          val entropyArray = kv._2.map(
+            frequency => {
+              //              println(frequency)
+              if(frequency.activeSize == 0){  // 处理不存在某些类型的属性边的情况
+                0.0
+              }
+              else{
+                frequency :/= sum(frequency)  // 计算每个属性对应的顶点概率
+                frequency.activeValuesIterator
+                  .map(x => x * Math.log(x)).sum * (-1) // 计算每个属性对应的熵
+              }
+            }
+          )
+          //          print(s"${kv._1}: \t")
+          //          t.foreach(x => print(s"$x\t"))
+          //          println()
+          (kv._1, entropyArray)
+        }
+      )
+      //      .foreach(
+      //        x => {
+      //          x.foreach( y => print(s"$y\t"))
+      //          println()
+      //        }
+      //      )
+      .map(
+      kv => {
+        // normalizedEntropyArray
+        kv._2.map(x => x / clusterSizeMapBC.value(kv._1).toDouble)  // 每个簇对应的属性熵除以当前簇的大小, 进行归一化
+      }
+    )
+      .reduce(  // 统计所有簇的属性熵
+      (x, y) => x +:+ y
+    )
+    //        .foreach(
+    //          x => {
+    //            print(s"$x\t")
+    //          }
+    //        )
+    //      println()
+    frequencyGraph.unpersist()
+
+    //    attributeEntropyArray.foreach(println(_))
+
+    val attributeInfluenceArray = attributeEntropyArray.map(
+      x => {
+        // 处理熵为0的情况
+        val modifiedEntropy = if(x < 1E-6) attributeEntropyArray.sum / attributeEntropyArray.length else x
+        // influence
+        1.0 / modifiedEntropy
+      }
+    )
+
+    val attributeWeightSum = oldEdgeWeights.sum - 1.0
+    val deltaAttributeWeights = attributeInfluenceArray.map(
+      x => {
+        (x / attributeInfluenceArray.sum) * attributeWeightSum
+      }
+    )
+
+    val newEdgeWeights = new ArrayBuffer[Double]
+    newEdgeWeights += 1.0
+    for(i <- 1 until oldEdgeWeights.length){
+      newEdgeWeights += (oldEdgeWeights(i) + deltaAttributeWeights(i-1)) / 2.0
+    }
+
+    newEdgeWeights.toArray
+  }
+
+  // 添加 entropy / frequency.activeSize
+  def updateEdgeWeight3(
     sc: SparkContext,
     edgeWeightUpdateGraph: Graph[(Long, Long), Long],  // [(vertexTypeId, clusterId), edgeTypeId]
     oldEdgeWeights: Array[Double]): Array[Double] = {
@@ -126,7 +489,8 @@ object EdgeWeightUpdate {
               }
               else{
                 frequency :/= sum(frequency)  // 计算每个属性对应的顶点概率
-                frequency.activeValuesIterator.map(x => x * Math.log(x)).sum * (-1)  // 计算每个属性对应的熵
+                frequency.activeValuesIterator
+                  .map(x => x * Math.log(x)).sum * (-1) / frequency.activeSize // 计算每个属性对应的熵
               }
             }
           )
@@ -180,7 +544,8 @@ object EdgeWeightUpdate {
     newEdgeWeights.toArray
   }
 
-  def updateEdgeWeight2(
+  // for 循环版本, 效率太低
+  def updateEdgeWeight4(
     sc: SparkContext,
     edgeWeightUpdateGraph: Graph[(Long, Long), Long],
     oldEdgeWeights: Array[Double]): Array[Double] = {

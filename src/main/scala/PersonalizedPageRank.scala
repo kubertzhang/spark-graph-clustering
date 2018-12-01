@@ -343,8 +343,6 @@ object PersonalizedPageRank {
     dynamicPersonalizedPageRankGraph
   }
 
-
-
   def reservePersonalizedPageRank(
     sc: SparkContext,
     dynamicPersonalizedPageRankGraph: Graph[(MutableMap[Long, Double], MutableMap[Long, Double],

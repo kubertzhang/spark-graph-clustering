@@ -5,21 +5,20 @@ import org.apache.spark.SparkConf
 import org.apache.spark.SparkContext
 import org.apache.spark.graphx._
 import org.apache.spark.internal.Logging
-
 import scala.collection.mutable.{Map => MutableMap}
 
 object GraphClustering extends Logging{
   def main(args: Array[String]): Unit = {
     // for local debug
-    val conf = new SparkConf().setAppName("Graph Clustering").setMaster("local[*]")
-    val args1 = Array("config/run-parameters.txt", "dataSet=dblp,dataSize=1m")
-    val configFile = args1(0)
-    val configParameters = args1(1)
+//    val conf = new SparkConf().setAppName("Graph Clustering").setMaster("local[*]")
+//    val args1 = Array("config/run-parameters.txt", "dataSet=dblp,dataSize=1m")
+//    val configFile = args1(0)
+//    val configParameters = args1(1)
 
     // for cluster running
-//    val conf = new SparkConf().setAppName("Graph Clustering")
-//    val configFile = args(0)
-//    val configParameters = args(1)
+    val conf = new SparkConf().setAppName("Graph Clustering")
+    val configFile = args(0)
+    val configParameters = args(1)
 
     val sc = new SparkContext(conf)
     sc.setLogLevel("ERROR")
@@ -172,8 +171,8 @@ object GraphClustering extends Logging{
 
       // result
       finalClusteringGraph = edgeWeightUpdateGraph
-      val density = ClusteringMetric.density(finalClusteringGraph)
-      println(s"[RESULT][result-density]: $density")
+//      val density = ClusteringMetric.density(finalClusteringGraph)
+//      println(s"[RESULT][result-density]: $density")
 
       val oldEdgeWeights = edgeWeights
       edgeWeights = EdgeWeightUpdate.updateEdgeWeight(sc, edgeWeightUpdateGraph, edgeWeights)
@@ -223,7 +222,7 @@ object GraphClustering extends Logging{
     // clustering quality
     val clusteredSourcesSize = finalClusteringGraph.vertices.filter(_._2._2 > 0L).count()
     val density = ClusteringMetric.density(finalClusteringGraph)
-    val entropy = ClusteringMetric.entropy(sc, finalClusteringGraph, edgeWeights)
+    val entropy = ClusteringMetric.entropy3(sc, finalClusteringGraph, edgeWeights)
     println(s"[RESULT][result-sources size]: ${sourcesBC.value.length}")
     println(s"[RESULT][result-clustered vertices size]: $clusteredSourcesSize")
     println(s"[RESULT][result-density]: $density")
