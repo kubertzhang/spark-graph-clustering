@@ -3,7 +3,6 @@ import org.apache.spark.SparkContext
 import org.apache.spark.graphx._
 import org.apache.spark.broadcast.Broadcast
 import scala.util.Random
-import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.{Map => MutableMap}
 
 object PersonalizedPageRank {
@@ -145,7 +144,6 @@ object PersonalizedPageRank {
     val personalizedPageRankGraph = Pregel(
       graph = attributeGraph,
       initialMsg = initialMessage,
-      maxIterations = 3,
       activeDirection = EdgeDirection.In)(
         vprog = vertexProgram,
         sendMsg = sendMessage,
@@ -363,7 +361,7 @@ object PersonalizedPageRank {
           for(i <- 0 until attributeNumBC.value){
             reserveMapArray(i)= collection.mutable.Map(
               reserveMapArray(i).mapValues(x => x * (newEdgeWeights(i) - oldEdgeWeightsBC.value(i)))
-                .filter(_._2 > 0.005).toSeq: _*
+                .filter(_._2 > 0.001).toSeq: _*
             )
             newResidualMap = (newResidualMap /: reserveMapArray(i))(
               (map, kv) => { map + (kv._1 -> (kv._2 + map.getOrElse(kv._1, 0.0))) }

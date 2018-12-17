@@ -53,6 +53,7 @@ object GraphClustering extends Logging{
     // *********************************************************************************
     val originalGraph: Graph[(String, Long), Long] = GraphLoader  // [(vertexCode, vertexTypeId), edgeTypeId]
       .originalGraph(sc, verticesDataPath, edgesDataPath)
+      // partition strategy
 //      .partitionBy(PartitionStrategy.EdgePartition2D, 280)  // (partition, partitionNum)
 //      .partitionBy(PartitionStrategy.EdgePartition2D)  // partition
       .cache()
@@ -119,7 +120,7 @@ object GraphClustering extends Logging{
               .dynamicPersonalizedPageRank(sc, originalGraph, sourcesBC, edgeWeights, resetProbBC, tolBC)
               .cache()
             val reserveTimeEnd = System.currentTimeMillis
-            PreProcessingTime = reserveTimeEnd - reserveTimeBegin
+            PreProcessingTime += reserveTimeEnd - reserveTimeBegin
           }
           PersonalizedPageRank
           .reservePersonalizedPageRank(sc, dynamicPersonalizedPageRankGraph, initialEdgeWeightsBC,
@@ -169,10 +170,14 @@ object GraphClustering extends Logging{
       }
       clusteringGraph.unpersist()
 
-      // result
+      // 中间结果
+      // *********************************************************************************
       finalClusteringGraph = edgeWeightUpdateGraph
-//      val density = ClusteringMetric.density(finalClusteringGraph)
-//      println(s"[RESULT][result-density]: $density")
+      val density = ClusteringMetric.density(finalClusteringGraph)
+      val entropy = ClusteringMetric.entropy3(sc, finalClusteringGraph, edgeWeights)
+      println(s"[RESULT][result-density]: $density")
+      println(s"[RESULT][result-entropy]: $entropy")
+      // *********************************************************************************
 
       val oldEdgeWeights = edgeWeights
       edgeWeights = EdgeWeightUpdate.updateEdgeWeight(sc, edgeWeightUpdateGraph, edgeWeights)
