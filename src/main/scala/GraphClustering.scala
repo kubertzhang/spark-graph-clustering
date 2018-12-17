@@ -172,11 +172,11 @@ object GraphClustering extends Logging{
 
       // 中间结果
       // *********************************************************************************
-      finalClusteringGraph = edgeWeightUpdateGraph
-      val density = ClusteringMetric.density(finalClusteringGraph)
-      val entropy = ClusteringMetric.entropy3(sc, finalClusteringGraph, edgeWeights)
-      println(s"[RESULT][result-density]: $density")
-      println(s"[RESULT][result-entropy]: $entropy")
+//      finalClusteringGraph = edgeWeightUpdateGraph
+//      val density = ClusteringMetric.density(finalClusteringGraph)
+//      val entropy = ClusteringMetric.entropy3(sc, finalClusteringGraph, edgeWeights)
+//      println(s"[RESULT][result-density]: $density")
+//      println(s"[RESULT][result-entropy]: $entropy")
       // *********************************************************************************
 
       val oldEdgeWeights = edgeWeights
