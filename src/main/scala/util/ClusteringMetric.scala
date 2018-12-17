@@ -111,7 +111,6 @@ object ClusteringMetric {
       sendMsg = sendMessage,
       mergeMsg = mergeMessage
     )
-
     //    println(s"e ==== ${FrequencyGraph.vertices.filter(_._2._2 > 0L).count()}")
 
     val attributeEntropyArray = FrequencyGraph.vertices

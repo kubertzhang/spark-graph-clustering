@@ -36,7 +36,6 @@ object Clustering extends Logging {
         initialMsg = -1L,
         activeDirection = EdgeDirection.Out)(
         vprog = (vid, attr, msg) => (attr._1, math.max(attr._2, msg)),
-        //        sendMsg = sendMessage,
         sendMsg = {
           edge => {
             // 只在核心点之间传递消息
@@ -78,7 +77,7 @@ object Clustering extends Logging {
     personalizedPageRankGraph: Graph[MutableMap[Long, Double], Double],
     epsilonBC: Broadcast[Double],
     minPtsBC: Broadcast[Int],
-    optimized: Boolean): Graph[Long, Double] ={
+    optimized: Boolean): Graph[Long, Double] = {
 
     require(epsilonBC.value >= 0 && epsilonBC.value <= 1, s"Epsilon must belong to [0, 1], but got ${epsilonBC.value}")
 
@@ -119,10 +118,10 @@ object Clustering extends Logging {
     // 核心点和边界点的clusterId > 0L, 离散点的clusterId = -1L
     // Execute a dynamic version of Pregel
     val clusteringGraph = if(optimized){
-      basicClustering(labeledEpsilonNeighborGraph)
+      optimizedClustering(labeledEpsilonNeighborGraph)
     }
     else{
-      optimizedClustering(labeledEpsilonNeighborGraph)
+      basicClustering(labeledEpsilonNeighborGraph)
     }
 
     epsilonNeighborGraph.unpersist()

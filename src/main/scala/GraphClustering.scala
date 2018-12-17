@@ -54,7 +54,7 @@ object GraphClustering extends Logging{
     val originalGraph: Graph[(String, Long), Long] = GraphLoader  // [(vertexCode, vertexTypeId), edgeTypeId]
       .originalGraph(sc, verticesDataPath, edgesDataPath)
       // partition strategy
-//      .partitionBy(PartitionStrategy.EdgePartition2D, 280)  // (partition, partitionNum)
+//      .partitionBy(PartitionStrategy.EdgePartition2D, 55)  // (partition, partitionNum)
 //      .partitionBy(PartitionStrategy.EdgePartition2D)  // partition
       .cache()
 
