@@ -170,6 +170,8 @@ object GraphClustering extends Logging{
       }
       clusteringGraph.unpersist()
 
+      finalClusteringGraph = edgeWeightUpdateGraph
+
       // 中间结果
       // *********************************************************************************
 //      finalClusteringGraph = edgeWeightUpdateGraph

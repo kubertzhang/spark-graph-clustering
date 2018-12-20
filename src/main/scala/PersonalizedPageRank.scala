@@ -35,7 +35,7 @@ object PersonalizedPageRank {
       // 只push back主类顶点(vertexType == 0L)
       val propagateResidualMap = curResidualMap.filter(kv => (attr._4 == 0L) && (kv._2 >= tolBC.value))
 
-      val newEstimateMap = (attr._1 /: curResidualMap)(
+      val newEstimateMap = (attr._1 /: propagateResidualMap)(
         (map, kv) => { map + (kv._1 -> (kv._2 + map.getOrElse(kv._1, 0.0) * resetProbBC.value)) }
       )
 
@@ -54,7 +54,7 @@ object PersonalizedPageRank {
         (map, kv) => { map + (kv._1 -> (kv._2 + map.getOrElse(kv._1, 0.0))) }
       )
       val propagateResidualMap = curResidualMap.filter(_._2 >= tolBC.value)
-      val newEstimateMap = (attr._1 /: curResidualMap)(
+      val newEstimateMap = (attr._1 /: propagateResidualMap)(
         (map, kv) => { map + (kv._1 -> (kv._2 + map.getOrElse(kv._1, 0.0) * resetProbBC.value)) }
       )
       val newResidualMap = curResidualMap.filter(_._2 < tolBC.value)
